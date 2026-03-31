@@ -1,0 +1,3 @@
+$PROJ_SRC_ROOT/soc_verif/sram/ctests/Bkup_ram_wr_test/main.c
+$PROJ_SRC_ROOT/soc_verif/sram/ctests/Bkup_ram_wr_test/main.simargs
+$PROJ_SRC_ROOT/soc_verif/sram/ctests/Bkup_ram_wr_test/README.TXT

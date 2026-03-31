@@ -1,0 +1,2 @@
++TEST_LOOPBACK=usart2_autotest_connect
++fast_sim

@@ -1,0 +1,5 @@
+$PROJ_SRC_ROOT/soc_verif/rtc/ctests/alarm_int/main.c
+$PROJ_SRC_ROOT/soc_verif/rtc/ctests/alarm_int/README.TXT
+
+$PROJ_SRC_ROOT/soc_verif/rtc/ctests/alarm/main.c
+$PROJ_SRC_ROOT/soc_verif/rtc/ctests/alarm/README.TXT

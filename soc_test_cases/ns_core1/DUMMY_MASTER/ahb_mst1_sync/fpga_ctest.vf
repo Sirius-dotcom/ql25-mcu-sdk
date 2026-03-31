@@ -1,0 +1,6 @@
+
+$PROJ_SRC_ROOT/soc_verif/dummy_master/ctests/ram_write_read_burst2/main.c
+$PROJ_SRC_ROOT/soc_verif/dummy_master/ctests/ram_write_read_burst2/README.TXT
+
+$PROJ_SRC_ROOT/soc_verif/dummy_master/ctests/ram_write_read_burst4/main.c
+$PROJ_SRC_ROOT/soc_verif/dummy_master/ctests/ram_write_read_burst4/README.TXT

@@ -1,0 +1,1 @@
++ENABLE_JTAG_DPI -sv_lib $PROJ_SRC_ROOT/$PROJ_NAME/testbench/jtag_model/debugger_test/chain_test/debugger

@@ -1,0 +1,5 @@
++incdir+$PROJ_SRC_ROOT/soc_verif/usart/ctests
+
+$PROJ_SRC_ROOT/soc_verif/usart/ctests/printf/main.c
+$PROJ_SRC_ROOT/soc_verif/usart/ctests/printf/main.simargs
+$PROJ_SRC_ROOT/soc_verif/usart/ctests/printf/README.TXT

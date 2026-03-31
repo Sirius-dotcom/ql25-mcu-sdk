@@ -1,0 +1,55 @@
+## Package Base Information
+name: app-nsdk_ns_core0_USART_usart3_transmitter_receiver
+owner: nuclei
+version:
+description: NS_CORE0 USART_usart3_transmitter_receiver Test Case
+type: app
+keywords:
+  - app
+  - risc-v
+license: Apache License 2.0
+homepage: https://nucleisys.com/
+
+## Package Dependency
+dependencies:
+  - name: sdk-nuclei_sdk
+    owner: nuclei
+    version:
+  - name: ssp-nsdk_ns_core0
+    version:
+
+## Package Configurations
+configuration:
+  app_commonflags:
+    value:
+    type: text
+    description: Application Compile Flags
+
+## Set Configuration for other packages
+setconfig:
+
+## Source Code Management
+codemanage:
+  copyfiles:
+    - path: ["*.c", "*.h", "*.S"]
+  incdirs:
+    - path: ["./"]
+  libdirs:
+  ldlibs:
+    - libs:
+
+## Build Configuration
+buildconfig:
+  - type: gcc
+    common_flags: # flags need to be combined together across all packages
+      - flags: ${app_commonflags}
+    ldflags:
+    cflags:
+    asmflags:
+    cxxflags:
+    prebuild_steps: # could be override by app/bsp type
+      command:
+      description:
+    postbuild_steps: # could be override by app/bsp type
+      command:
+      description:

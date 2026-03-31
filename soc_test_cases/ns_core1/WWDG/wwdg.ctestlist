@@ -1,0 +1,8 @@
+WWDG_wwdg1_reg_test
+WWDG_wwdg0_reg_test
+WWDG_wwdg1_delay_feed_reset
+WWDG_wwdg1_early_feed_reset
+WWDG_wwdg1_nmi
+WWDG_wwdg0_delay_feed_reset
+WWDG_wwdg0_early_feed_reset
+WWDG_wwdg0_nmi

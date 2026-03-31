@@ -1,0 +1,2 @@
++TEST_LOOPBACK=qspi_xip0_flash_connect
++TEST_TO_VALUE=3000000000

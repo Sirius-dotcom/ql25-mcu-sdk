@@ -1,0 +1,1585 @@
+
+/*
+NOTE: this file is automacally generated from reg_test_gen.py.
+source file may include vpp cfg define and define vpp file.
+main register info are extracted from ip reg csv file.
+*/
+            
+#include <stdio.h>
+#include "nuclei_sdk_soc.h"
+
+//#define DEBUG
+#ifdef DEBUG
+#define debug(argc,argv...) ({printf(argc,##argv);} )
+#else
+#define debug(argc,argv...)
+#endif // DEBUG
+
+#define ERR_LOG    30
+uint32_t err_number[ERR_LOG] ;
+uint32_t err_value[ERR_LOG] ;
+uint32_t Index;
+uint32_t volatile index_for_clk_diable=0  ;
+
+void err_log(addr_xlen addr)
+{
+    if(Index>ERR_LOG)
+    {
+       // debug("Err : Out of Array Boundary\r\n");
+        return ;
+    }
+    err_number[Index++] = addr;
+    err_value[Index++] = REG32(addr);
+
+}
+
+
+static inline void REG_EWR_CHECK(addr_xlen addr,uint32_t ref_value)
+{
+    REG32(addr)=ref_value;
+    if(ref_value == REG32(addr))
+    {
+        #ifndef CFG_SIMULATION
+       // debug("reg  addr:%x # PASS #\r\n",addr);
+        #endif
+    }
+    else
+    {
+        debug("reg addr:%x , actual_value :%x <-> expected_value :%x, FAIL #\r\n",addr,REG32(addr),ref_value);
+        #ifdef CFG_SIMULATION
+        simulation_fail();
+        #endif
+
+            err_log(addr);
+    }
+}
+
+static inline void REG_EWR_DOUBLE_CHECK(addr_xlen addr,uint32_t ref_value)
+{
+    REG32(addr)=ref_value;
+    if(ref_value == REG32(addr))
+    {
+        if(ref_value == REG32(addr))
+        {            
+            #ifndef CFG_SIMULATION
+            // debug("reg  addr:%x # PASS #\r\n",addr);
+            #endif
+        } else
+        {
+            debug("reg addr:%x , actual_value :%x <-> test value :%x, FAIL #\r\n",addr,REG32(addr),ref_value);
+            #ifdef CFG_SIMULATION
+            simulation_fail();
+            #endif
+            err_log(addr);
+        }
+    }
+    else
+    {
+        debug("reg addr:%x , actual_value :%x <-> expected_value :%x, FAIL #\r\n",addr,REG32(addr),ref_value);
+        #ifdef CFG_SIMULATION
+        simulation_fail();
+        #endif
+
+            err_log(addr);
+
+    }
+    
+}
+
+static inline void REG_PWR_CHECK(addr_xlen addr,uint32_t test_val,uint32_t ref_val ,uint32_t field_mask)
+{
+    uint32_t reg_tmp;
+    REG32(addr) = test_val;
+    reg_tmp = REG32(addr);
+    if(ref_val == ( reg_tmp & field_mask ) )
+    {
+        #ifndef CFG_SIMULATION
+        //debug("reg  addr:%x REG_PWR # PASS #\r\n",addr);
+        #endif
+    }
+    else
+    {
+        debug("reg addr:%x , actual_value :%x <-> expected_value :%x, FAIL #\r\n",addr,( reg_tmp & field_mask ),ref_val);  
+        #ifdef CFG_SIMULATION
+        simulation_fail();
+        #endif
+        err_log(addr)  ;
+    }
+}
+
+static inline void REG_PWR_DOUBLE_CHECK(addr_xlen addr,uint32_t test_val,uint32_t ref_val ,uint32_t field_mask)
+{
+    uint32_t reg_tmp;
+    REG32(addr) = test_val;
+    reg_tmp = REG32(addr);
+    if(ref_val == ( reg_tmp & field_mask ) )
+    {
+        if(ref_val == ( reg_tmp & field_mask ) )
+        {
+            #ifndef CFG_SIMULATION
+            //debug("reg  addr:%x REG_PWR # PASS #\r\n",addr);
+            #endif
+        } else
+        {
+            debug("reg addr:%x , actual_value :%x <-> test value :%x, FAIL #\r\n",addr,REG32(addr),test_val);
+            #ifdef CFG_SIMULATION
+            simulation_fail();
+            #endif
+            err_log(addr);
+        }
+    }
+    else
+    {
+        debug("reg addr:%x , actual_value :%x <-> expected_value :%x, FAIL #\r\n",addr,( reg_tmp & field_mask ),ref_val);  
+        #ifdef CFG_SIMULATION
+        simulation_fail();
+        #endif
+        err_log(addr)  ;
+    }
+}
+static inline void REG_RO_CHECK(addr_xlen addr,uint32_t test_val)
+{
+    uint32_t tmp ;
+    tmp = REG32(addr);
+    REG32(addr) = test_val;
+    if(tmp == REG32(addr))
+    {
+        #ifndef CFG_SIMULATION
+        //debug("reg  addr:%x # PASS #\r\n",addr);
+        #endif
+    }
+    else
+    {
+         debug("reg addr:%x , actual_value :%x <-> test value :%x, FAIL #\r\n",addr,REG32(addr),test_val);
+        #ifdef CFG_SIMULATION
+        simulation_fail();
+        #endif
+        err_log(addr);
+    }
+}
+
+static inline void REG_RO_DOUBLE_CHECK(addr_xlen addr,uint32_t test_val)
+{
+    uint32_t tmp ;
+    tmp = REG32(addr);
+    REG32(addr) = test_val;
+    if(tmp == REG32(addr))
+    {
+        if(tmp == REG32(addr))
+        {
+            #ifndef CFG_SIMULATION
+            //debug("reg  addr:%x # PASS #\r\n",addr);
+            #endif
+        } else
+        {
+            debug("reg addr:%x , actual_value :%x <-> test value :%x, FAIL #\r\n",addr,REG32(addr),test_val);
+            #ifdef CFG_SIMULATION
+            simulation_fail();
+            #endif
+            err_log(addr);
+        }
+    }
+    else
+    {
+         debug("reg addr:%x , actual_value :%x <-> test value :%x, FAIL #\r\n",addr,REG32(addr),test_val);
+        #ifdef CFG_SIMULATION
+        simulation_fail();
+        #endif
+        err_log(addr);
+    }
+}
+
+static inline void REG_RC_CHECK(addr_xlen addr, uint32_t default_val, uint32_t test_val)
+{
+    REG32(addr) = test_val;
+    if(default_val == REG32(addr))
+    {
+        #ifndef CFG_SIMULATION
+        //debug("reg  addr:%x # PASS #\r\n",addr);
+         #endif
+    }
+    else
+    {
+         debug("reg addr:%x , actual_value :%x <-> test_value :%x, FAIL #\r\n",addr,REG32(addr),test_val);
+        #ifdef CFG_SIMULATION
+        simulation_fail();
+        #endif
+        err_log(addr);
+    }
+}
+
+static inline void REG_RC_DOUBLE_CHECK(addr_xlen addr, uint32_t default_val, uint32_t test_val)
+{
+    REG32(addr) = test_val;
+    if(default_val == REG32(addr))
+    {
+        if(default_val == REG32(addr))
+        {
+            #ifndef CFG_SIMULATION
+            //debug("reg  addr:%x # PASS #\r\n",addr);
+            #endif
+        } else
+        {
+            debug("reg addr:%x , actual_value :%x <-> test value :%x, FAIL #\r\n",addr,REG32(addr),test_val);
+            #ifdef CFG_SIMULATION
+            simulation_fail();
+            #endif
+            err_log(addr);
+        }
+    }
+    else
+    {
+         debug("reg addr:%x , actual_value :%x <-> test_value :%x, FAIL #\r\n",addr,REG32(addr),test_val);
+        #ifdef CFG_SIMULATION
+        simulation_fail();
+        #endif
+        err_log(addr);
+    }
+}
+
+static inline void __attribute__((optimize("O0"))) REG_CLK_DIS_CHECK(addr_xlen addr)
+{
+    uint8_t volatile state1, state2, state3=0;
+    
+    state1=(0==REG32(addr));
+    
+    for(int i =0;i<20;i++)
+    {
+        __NOP();
+    }
+    if(index_for_clk_diable==1)
+    {
+        index_for_clk_diable=0;
+        #ifndef CFG_SIMULATION
+        //debug("reg  addr:%x CLOCK DIS CHECK #### PASS ####\r\n",addr);
+        #endif
+    }
+    else
+    {
+        printf("reg  addr:%x CLOCK DIS CHECK #### FAIL ####\r\n",addr);
+        err_log(addr);
+    }
+
+}
+
+
+static inline void REG_Default_CHECK(addr_xlen addr,uint32_t default_val)
+{
+    if(default_val == REG32(addr))
+    {
+        #ifndef CFG_SIMULATION
+        //debug("reg  addr:%x DefVal_CKECK # PASS #\r\n",addr);
+        #endif
+    }
+    else
+    {
+         debug("reg addr:%x , actual_value :%x <-> default_val :%x, FAIL #\r\n",addr,REG32(addr),default_val);
+        #ifdef CFG_SIMULATION
+        simulation_fail();
+        #endif
+        err_log(addr);
+    }
+}
+
+
+static inline void REG_Write_Defval_back(addr_xlen addr,uint32_t default_val)
+{
+    REG32(addr)=default_val;
+}
+
+
+uint8_t REG_DefVal_CHECK(addr_xlen addr,uint32_t default_val)
+{
+    REG_Default_CHECK( addr,  default_val);
+}
+
+
+//EWR : The entire field of the register is readable and writable
+//PWR : Parts of the register are readable and writable
+//RO : register is  read only
+//WO :  register is  write only
+
+
+/*
+    default_val : register defult value
+    test_val : register write value
+    ref_val  : register ref value , contrast  with the actual read value
+*/
+
+//EWR
+uint8_t REG_EWR_Check(addr_xlen addr,uint32_t default_val)
+{
+    REG_EWR_CHECK(addr,0xFFFFFFFF);
+    REG_EWR_CHECK(addr,0x0);
+    REG_EWR_CHECK(addr,0xFFFFFFFF);
+    REG_EWR_CHECK(addr,0x0);
+    REG_EWR_CHECK(addr,0x5a5a5a5a);
+    REG_EWR_CHECK(addr,0xa5a5a5a5);
+    REG_EWR_CHECK(addr,0x5a5a5a5a);
+    REG_EWR_CHECK(addr,0xa5a5a5a5);
+    REG_EWR_CHECK(addr,0xa5a55a5a);
+    REG_EWR_CHECK(addr,0x5a5aa5a5);
+    REG_Write_Defval_back(addr,default_val);
+}
+
+uint8_t REG_EWR_Double_Check(addr_xlen addr,uint32_t default_val)
+{
+    REG_EWR_DOUBLE_CHECK(addr,0xFFFFFFFF);
+    REG_EWR_DOUBLE_CHECK(addr,0x0);
+    REG_EWR_DOUBLE_CHECK(addr,0xFFFFFFFF);
+    REG_EWR_DOUBLE_CHECK(addr,0x0);
+    REG_EWR_DOUBLE_CHECK(addr,0x5a5a5a5a);
+    REG_EWR_DOUBLE_CHECK(addr,0xa5a5a5a5);
+    REG_EWR_DOUBLE_CHECK(addr,0x5a5a5a5a);
+    REG_EWR_DOUBLE_CHECK(addr,0xa5a5a5a5);
+    REG_EWR_DOUBLE_CHECK(addr,0xa5a55a5a);
+    REG_EWR_DOUBLE_CHECK(addr,0x5a5aa5a5);
+    REG_Write_Defval_back(addr,default_val);
+}
+//PWR
+uint8_t REG_PWR_Check(addr_xlen addr, uint32_t default_val,uint32_t test_val, uint32_t ref_val, uint32_t field_mask)
+{
+    REG_PWR_CHECK(addr,test_val,ref_val ,field_mask);
+    REG_Write_Defval_back(addr,default_val);
+}
+
+uint8_t REG_PWR_Double_Check(addr_xlen addr, uint32_t default_val,uint32_t test_val, uint32_t ref_val, uint32_t field_mask)
+{
+    REG_PWR_DOUBLE_CHECK(addr,test_val,ref_val ,field_mask);
+    REG_Write_Defval_back(addr,default_val);
+}
+//RO
+uint8_t REG_RO_Check(addr_xlen addr,uint32_t default_val,uint32_t test_val)
+{
+    REG_RO_CHECK(addr,test_val);
+}
+
+uint8_t REG_RO_Double_Check(addr_xlen addr,uint32_t default_val,uint32_t test_val)
+{
+    REG_RO_DOUBLE_CHECK(addr,test_val);
+}
+
+//RC
+uint8_t REG_RC_Check(addr_xlen addr,uint32_t default_val,uint32_t test_val)
+{
+    REG_RC_CHECK(addr,default_val, test_val);
+}
+
+uint8_t REG_RC_Double_Check(addr_xlen addr,uint32_t default_val,uint32_t test_val)
+{
+    REG_RC_DOUBLE_CHECK(addr,default_val, test_val);
+}
+
+
+void __attribute__((optimize("O0"))) buserror_handler(unsigned long cause, unsigned long sp)
+{
+    index_for_clk_diable++;
+}
+
+void env_init(void)
+{
+    Exception_Register_EXC(5, (unsigned long)buserror_handler);
+    Exception_Register_EXC(7, (unsigned long)buserror_handler);
+}
+void main(void)
+{
+    uint8_t state0=0;
+
+    env_init();
+
+uint32_t volatile start_mcycle2;
+uint32_t volatile start_mcycle1;
+uint32_t volatile delta_mcycle1;
+uint32_t volatile delta_mcycle2;
+    #ifdef MISC_HAS_QSPI_XIP0_HAS_CLK
+
+        qspi_xip0_clk_en(ENABLE);
+
+    #endif
+
+    /*********************TEST FOR POR DEVAL *********************/
+
+    /*testing for  SCKDIV: addr=0x10060000*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_sckdiv               field_range: 11:0             field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060000,0x4);
+
+    /*testing for  SCKMODE: addr=0x10060004*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_cpol                 field_range: 1:1              field_access: rw  
+    field_name: spi_cpha                 field_range: 0:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060004,0x0);
+
+    /*testing for  DDR_SCKSAMPLE: addr=0x10060008*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_ddr_scksample        field_range: 11:0             field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060008,0x0);
+
+    /*testing for  FORCE: addr=0x1006000c*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_force_wp             field_range: 1:1              field_access: rw  
+    field_name: spi_force_en             field_range: 0:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x1006000c,0x1);
+
+    /*testing for  CSID: addr=0x10060010*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_csid                 field_range: 2:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060010,0x1);
+
+    /*testing for  CSDEF: addr=0x10060014*/
+    /*
+    field_name: reserved                 field_range: 31:4             field_access: ro  
+    field_name: spi_csdef                field_range: 3:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060014,0xf);
+
+    /*testing for  CSMODE: addr=0x10060018*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_csmode               field_range: 1:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060018,0x0);
+
+    /*testing for RO VERSION: addr=0x1006001c*/
+    /*
+    field_name: spi_version              field_range: 31:0             field_access: ro  
+    */
+    REG_DefVal_CHECK(0x1006001c,0x20203);
+
+    /*testing for EWR ADDR_WRAP: addr=0x10060020*/
+    /*
+    field_name: spi_offset_addr          field_range: 31:0             field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060020,0x0);
+
+    /*testing for EWR BOUNDARY_CFG: addr=0x10060024*/
+    /*
+    field_name: spi_boundry_cfg          field_range: 31:0             field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060024,0x3ff);
+
+    /*testing for  DELAY0: addr=0x10060028*/
+    /*
+    field_name: reserved                 field_range: 31:24            field_access: ro  
+    field_name: spi_sckcs                field_range: 23:16            field_access: rw  
+    field_name: reserved                 field_range: 15:8             field_access: ro  
+    field_name: spi_cssck                field_range: 7:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060028,0x10001);
+
+    /*testing for  DELAY1: addr=0x1006002c*/
+    /*
+    field_name: reserved                 field_range: 31:24            field_access: ro  
+    field_name: spi_interxfr             field_range: 23:16            field_access: rw  
+    field_name: reserved                 field_range: 15:8             field_access: ro  
+    field_name: spi_intercs              field_range: 7:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x1006002c,0x3);
+
+    /*testing for RO FIFO_NUM: addr=0x10060030*/
+    /*
+    field_name: reserved                 field_range: 31:19            field_access: ro  
+    field_name: spi_rx_num               field_range: 18:16            field_access: ro  
+    field_name: reserved                 field_range: 15:3             field_access: ro  
+    field_name: spi_tx_num               field_range: 2:0              field_access: ro  
+    */
+    REG_DefVal_CHECK(0x10060030,0x0);
+
+    /*testing for  TXDATA: addr=0x10060048*/
+    /*
+    field_name: spi_txdata               field_range: 31:0             field_access: wo  
+    */
+    REG_DefVal_CHECK(0x10060048,0x0);
+
+    /*testing for  TX_MARK: addr=0x10060050*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_tx_mark              field_range: 2:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060050,0x0);
+
+    /*testing for  RX_MARK: addr=0x10060054*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_rx_mark              field_range: 2:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060054,0x0);
+
+    /*testing for  FCTRL: addr=0x10060060*/
+    /*
+    field_name: reserved                 field_range: 31:6             field_access: ro  
+    field_name: spi_boundary_en          field_range: 5:5              field_access: rw  
+    field_name: spi_flash_wrap_en        field_range: 4:4              field_access: rw  
+    field_name: spi_flash_burst_en       field_range: 3:3              field_access: rw  
+    field_name: spi_flash_wen            field_range: 2:2              field_access: rw  
+    field_name: spi_flash_wmask_en       field_range: 1:1              field_access: rw  
+    field_name: spi_flash_en             field_range: 0:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060060,0x1);
+
+    /*testing for  IE: addr=0x10060070*/
+    /*
+    field_name: reserved                 field_range: 31:15            field_access: ro  
+    field_name: spi_cfg_err_en           field_range: 14:14            field_access: rw  
+    field_name: reserved                 field_range: 13:13            field_access: ro  
+    field_name: spi_rx_done_en           field_range: 12:12            field_access: rw  
+    field_name: spi_tx_done_en           field_range: 11:11            field_access: rw  
+    field_name: reserved                 field_range: 10:8             field_access: ro  
+    field_name: spi_done_en              field_range: 7:7              field_access: rw  
+    field_name: reserved                 field_range: 6:6              field_access: ro  
+    field_name: spi_tx_ovr_en            field_range: 5:5              field_access: rw  
+    field_name: spi_rx_udr_en            field_range: 4:4              field_access: rw  
+    field_name: spi_rx_ovr_en            field_range: 3:3              field_access: rw  
+    field_name: spi_tx_udr_en            field_range: 2:2              field_access: rw  
+    field_name: spi_rx_irq_en            field_range: 1:1              field_access: rw  
+    field_name: spi_tx_irq_en            field_range: 0:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060070,0x0);
+
+    /*testing for  SDR_SCKSAMPLE: addr=0x10060080*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_sdr_scksample        field_range: 11:0             field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060080,0x0);
+
+    /*********************TEST FOR CLOCK DIVISION 1*********************/
+
+    #if defined(__CCM_PRESENT) && __CCM_PRESENT == 1 && __DCACHE_PRESENT == 1
+        MFlushInvalDCache();
+    #endif
+    #if defined(__ICACHE_PRESENT) && __ICACHE_PRESENT == 1
+        DisableICache();
+    #endif
+    #if defined(__DCACHE_PRESENT) && __DCACHE_PRESENT == 1
+        DisableDCache();
+    #endif
+    __RV_CSR_CLEAR(CSR_MMISC_CTL,MMISC_CTL_BPU);
+    start_mcycle1=__RV_CSR_READ(CSR_MCYCLE);
+
+    /*testing for  SCKDIV: addr=0x10060000*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_sckdiv               field_range: 11:0             field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060000, 0x4, (0x00000000 & 0xfff | 0), 0x0, 0xfff);
+
+    REG_PWR_Double_Check(0x10060000, 0x4, (0xFFFFFFFF & 0xfff | 0), 0xfff, 0xfff);
+
+    REG_PWR_Double_Check(0x10060000, 0x4, (0x55555555 & 0xfff | 0), 0x555, 0xfff);
+
+    REG_PWR_Double_Check(0x10060000, 0x4, (0xAAAAAAAA & 0xfff | 0), 0xaaa, 0xfff);
+
+    /*testing for  SCKMODE: addr=0x10060004*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_cpol                 field_range: 1:1              field_access: rw  
+    field_name: spi_cpha                 field_range: 0:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060004, 0x0, (0x00000000 & 0x3 | 0), 0x0, 0x3);
+
+    REG_PWR_Double_Check(0x10060004, 0x0, (0xFFFFFFFF & 0x3 | 0), 0x3, 0x3);
+
+    REG_PWR_Double_Check(0x10060004, 0x0, (0x55555555 & 0x3 | 0), 0x1, 0x3);
+
+    REG_PWR_Double_Check(0x10060004, 0x0, (0xAAAAAAAA & 0x3 | 0), 0x2, 0x3);
+
+    /*testing for  DDR_SCKSAMPLE: addr=0x10060008*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_ddr_scksample        field_range: 11:0             field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060008, 0x0, (0x00000000 & 0xfff | 0), 0x0, 0xfff);
+
+    REG_PWR_Double_Check(0x10060008, 0x0, (0xFFFFFFFF & 0xfff | 0), 0xfff, 0xfff);
+
+    REG_PWR_Double_Check(0x10060008, 0x0, (0x55555555 & 0xfff | 0), 0x555, 0xfff);
+
+    REG_PWR_Double_Check(0x10060008, 0x0, (0xAAAAAAAA & 0xfff | 0), 0xaaa, 0xfff);
+
+    /*testing for  FORCE: addr=0x1006000c*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_force_wp             field_range: 1:1              field_access: rw  
+    field_name: spi_force_en             field_range: 0:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x1006000c, 0x1, (0x00000000 & 0x3 | 0), 0x0, 0x3);
+
+    REG_PWR_Double_Check(0x1006000c, 0x1, (0xFFFFFFFF & 0x3 | 0), 0x3, 0x3);
+
+    REG_PWR_Double_Check(0x1006000c, 0x1, (0x55555555 & 0x3 | 0), 0x1, 0x3);
+
+    REG_PWR_Double_Check(0x1006000c, 0x1, (0xAAAAAAAA & 0x3 | 0), 0x2, 0x3);
+
+    /*testing for  CSID: addr=0x10060010*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_csid                 field_range: 2:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060010, 0x1, (0x00000000 & 0x7 | 0), 0x0, 0x7);
+
+    REG_PWR_Double_Check(0x10060010, 0x1, (0xFFFFFFFF & 0x7 | 0), 0x7, 0x7);
+
+    REG_PWR_Double_Check(0x10060010, 0x1, (0x55555555 & 0x7 | 0), 0x5, 0x7);
+
+    REG_PWR_Double_Check(0x10060010, 0x1, (0xAAAAAAAA & 0x7 | 0), 0x2, 0x7);
+
+    /*testing for  CSDEF: addr=0x10060014*/
+    /*
+    field_name: reserved                 field_range: 31:4             field_access: ro  
+    field_name: spi_csdef                field_range: 3:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060014, 0xf, (0x00000000 & 0xf | 0), 0x0, 0xf);
+
+    REG_PWR_Double_Check(0x10060014, 0xf, (0xFFFFFFFF & 0xf | 0), 0xf, 0xf);
+
+    REG_PWR_Double_Check(0x10060014, 0xf, (0x55555555 & 0xf | 0), 0x5, 0xf);
+
+    REG_PWR_Double_Check(0x10060014, 0xf, (0xAAAAAAAA & 0xf | 0), 0xa, 0xf);
+
+    /*testing for  CSMODE: addr=0x10060018*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_csmode               field_range: 1:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060018, 0x0, (0x00000000 & 0x3 | 0), 0x0, 0x3);
+
+    REG_PWR_Double_Check(0x10060018, 0x0, (0xFFFFFFFF & 0x3 | 0), 0x3, 0x3);
+
+    REG_PWR_Double_Check(0x10060018, 0x0, (0x55555555 & 0x3 | 0), 0x1, 0x3);
+
+    REG_PWR_Double_Check(0x10060018, 0x0, (0xAAAAAAAA & 0x3 | 0), 0x2, 0x3);
+
+    /*testing for RO VERSION: addr=0x1006001c*/
+    /*
+    field_name: spi_version              field_range: 31:0             field_access: ro  
+    */
+    REG_RO_Double_Check(0x1006001c, 0x20203, 0xFFFFFFFF);
+
+    /*testing for EWR ADDR_WRAP: addr=0x10060020*/
+    /*
+    field_name: spi_offset_addr          field_range: 31:0             field_access: rw  
+    */
+    REG_EWR_Double_Check(0x10060020, 0x0);
+
+    /*testing for EWR BOUNDARY_CFG: addr=0x10060024*/
+    /*
+    field_name: spi_boundry_cfg          field_range: 31:0             field_access: rw  
+    */
+    REG_EWR_Double_Check(0x10060024, 0x3ff);
+
+    /*testing for  DELAY0: addr=0x10060028*/
+    /*
+    field_name: reserved                 field_range: 31:24            field_access: ro  
+    field_name: spi_sckcs                field_range: 23:16            field_access: rw  
+    field_name: reserved                 field_range: 15:8             field_access: ro  
+    field_name: spi_cssck                field_range: 7:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060028, 0x10001, (0x00000000 & 0xff00ff | 0), 0x0, 0xff00ff);
+
+    REG_PWR_Double_Check(0x10060028, 0x10001, (0xFFFFFFFF & 0xff00ff | 0), 0xff00ff, 0xff00ff);
+
+    REG_PWR_Double_Check(0x10060028, 0x10001, (0x55555555 & 0xff00ff | 0), 0x550055, 0xff00ff);
+
+    REG_PWR_Double_Check(0x10060028, 0x10001, (0xAAAAAAAA & 0xff00ff | 0), 0xaa00aa, 0xff00ff);
+
+    /*testing for  DELAY1: addr=0x1006002c*/
+    /*
+    field_name: reserved                 field_range: 31:24            field_access: ro  
+    field_name: spi_interxfr             field_range: 23:16            field_access: rw  
+    field_name: reserved                 field_range: 15:8             field_access: ro  
+    field_name: spi_intercs              field_range: 7:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x1006002c, 0x3, (0x00000000 & 0xff00ff | 0), 0x0, 0xff00ff);
+
+    REG_PWR_Double_Check(0x1006002c, 0x3, (0xFFFFFFFF & 0xff00ff | 0), 0xff00ff, 0xff00ff);
+
+    REG_PWR_Double_Check(0x1006002c, 0x3, (0x55555555 & 0xff00ff | 0), 0x550055, 0xff00ff);
+
+    REG_PWR_Double_Check(0x1006002c, 0x3, (0xAAAAAAAA & 0xff00ff | 0), 0xaa00aa, 0xff00ff);
+
+    /*testing for RO FIFO_NUM: addr=0x10060030*/
+    /*
+    field_name: reserved                 field_range: 31:19            field_access: ro  
+    field_name: spi_rx_num               field_range: 18:16            field_access: ro  
+    field_name: reserved                 field_range: 15:3             field_access: ro  
+    field_name: spi_tx_num               field_range: 2:0              field_access: ro  
+    */
+    REG_RO_Double_Check(0x10060030, 0x0, 0xFFFFFFFF);
+
+    /*testing for  TXDATA: addr=0x10060048*/
+    /*
+    field_name: spi_txdata               field_range: 31:0             field_access: wo  
+    */
+    REG_PWR_Double_Check(0x10060048, 0x0, (0x00000000 & 0x0 | 0), 0x0, 0x0);
+
+    REG_PWR_Double_Check(0x10060048, 0x0, (0xFFFFFFFF & 0x0 | 0), 0x0, 0x0);
+
+    REG_PWR_Double_Check(0x10060048, 0x0, (0x55555555 & 0x0 | 0), 0x0, 0x0);
+
+    REG_PWR_Double_Check(0x10060048, 0x0, (0xAAAAAAAA & 0x0 | 0), 0x0, 0x0);
+
+    /*testing for  TX_MARK: addr=0x10060050*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_tx_mark              field_range: 2:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060050, 0x0, (0x00000000 & 0x7 | 0), 0x0, 0x7);
+
+    REG_PWR_Double_Check(0x10060050, 0x0, (0xFFFFFFFF & 0x7 | 0), 0x7, 0x7);
+
+    REG_PWR_Double_Check(0x10060050, 0x0, (0x55555555 & 0x7 | 0), 0x5, 0x7);
+
+    REG_PWR_Double_Check(0x10060050, 0x0, (0xAAAAAAAA & 0x7 | 0), 0x2, 0x7);
+
+    /*testing for  RX_MARK: addr=0x10060054*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_rx_mark              field_range: 2:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060054, 0x0, (0x00000000 & 0x7 | 0), 0x0, 0x7);
+
+    REG_PWR_Double_Check(0x10060054, 0x0, (0xFFFFFFFF & 0x7 | 0), 0x7, 0x7);
+
+    REG_PWR_Double_Check(0x10060054, 0x0, (0x55555555 & 0x7 | 0), 0x5, 0x7);
+
+    REG_PWR_Double_Check(0x10060054, 0x0, (0xAAAAAAAA & 0x7 | 0), 0x2, 0x7);
+
+    /*testing for  FCTRL: addr=0x10060060*/
+    /*
+    field_name: reserved                 field_range: 31:6             field_access: ro  
+    field_name: spi_boundary_en          field_range: 5:5              field_access: rw  
+    field_name: spi_flash_wrap_en        field_range: 4:4              field_access: rw  
+    field_name: spi_flash_burst_en       field_range: 3:3              field_access: rw  
+    field_name: spi_flash_wen            field_range: 2:2              field_access: rw  
+    field_name: spi_flash_wmask_en       field_range: 1:1              field_access: rw  
+    field_name: spi_flash_en             field_range: 0:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060060, 0x1, (0x00000000 & 0x3f | 0), 0x0, 0x3f);
+
+    REG_PWR_Double_Check(0x10060060, 0x1, (0xFFFFFFFF & 0x3f | 0), 0x3f, 0x3f);
+
+    REG_PWR_Double_Check(0x10060060, 0x1, (0x55555555 & 0x3f | 0), 0x15, 0x3f);
+
+    REG_PWR_Double_Check(0x10060060, 0x1, (0xAAAAAAAA & 0x3f | 0), 0x2a, 0x3f);
+
+    /*testing for  IE: addr=0x10060070*/
+    /*
+    field_name: reserved                 field_range: 31:15            field_access: ro  
+    field_name: spi_cfg_err_en           field_range: 14:14            field_access: rw  
+    field_name: reserved                 field_range: 13:13            field_access: ro  
+    field_name: spi_rx_done_en           field_range: 12:12            field_access: rw  
+    field_name: spi_tx_done_en           field_range: 11:11            field_access: rw  
+    field_name: reserved                 field_range: 10:8             field_access: ro  
+    field_name: spi_done_en              field_range: 7:7              field_access: rw  
+    field_name: reserved                 field_range: 6:6              field_access: ro  
+    field_name: spi_tx_ovr_en            field_range: 5:5              field_access: rw  
+    field_name: spi_rx_udr_en            field_range: 4:4              field_access: rw  
+    field_name: spi_rx_ovr_en            field_range: 3:3              field_access: rw  
+    field_name: spi_tx_udr_en            field_range: 2:2              field_access: rw  
+    field_name: spi_rx_irq_en            field_range: 1:1              field_access: rw  
+    field_name: spi_tx_irq_en            field_range: 0:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060070, 0x0, (0x00000000 & 0x58bf | 0), 0x0, 0x58bf);
+
+    REG_PWR_Double_Check(0x10060070, 0x0, (0xFFFFFFFF & 0x58bf | 0), 0x58bf, 0x58bf);
+
+    REG_PWR_Double_Check(0x10060070, 0x0, (0x55555555 & 0x58bf | 0), 0x5015, 0x58bf);
+
+    REG_PWR_Double_Check(0x10060070, 0x0, (0xAAAAAAAA & 0x58bf | 0), 0x8aa, 0x58bf);
+
+    /*testing for  SDR_SCKSAMPLE: addr=0x10060080*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_sdr_scksample        field_range: 11:0             field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060080, 0x0, (0x00000000 & 0xfff | 0), 0x0, 0xfff);
+
+    REG_PWR_Double_Check(0x10060080, 0x0, (0xFFFFFFFF & 0xfff | 0), 0xfff, 0xfff);
+
+    REG_PWR_Double_Check(0x10060080, 0x0, (0x55555555 & 0xfff | 0), 0x555, 0xfff);
+
+    REG_PWR_Double_Check(0x10060080, 0x0, (0xAAAAAAAA & 0xfff | 0), 0xaaa, 0xfff);
+
+    delta_mcycle1=__RV_CSR_READ(CSR_MCYCLE)-start_mcycle1;
+
+    /*********************TEST FOR CLOCK DIVISION 36*********************/
+
+    #ifdef MISC_HAS_QSPI_XIP0_CLK_DIV
+
+    qspi_xip0_clk_div(35);
+
+    start_mcycle2=__RV_CSR_READ(CSR_MCYCLE);
+
+    /*testing for  SCKDIV: addr=0x10060000*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_sckdiv               field_range: 11:0             field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060000, 0x4, (0x00000000 & 0xfff | 0), 0x0, 0xfff);
+
+    REG_PWR_Double_Check(0x10060000, 0x4, (0xFFFFFFFF & 0xfff | 0), 0xfff, 0xfff);
+
+    REG_PWR_Double_Check(0x10060000, 0x4, (0x55555555 & 0xfff | 0), 0x555, 0xfff);
+
+    REG_PWR_Double_Check(0x10060000, 0x4, (0xAAAAAAAA & 0xfff | 0), 0xaaa, 0xfff);
+
+    /*testing for  SCKMODE: addr=0x10060004*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_cpol                 field_range: 1:1              field_access: rw  
+    field_name: spi_cpha                 field_range: 0:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060004, 0x0, (0x00000000 & 0x3 | 0), 0x0, 0x3);
+
+    REG_PWR_Double_Check(0x10060004, 0x0, (0xFFFFFFFF & 0x3 | 0), 0x3, 0x3);
+
+    REG_PWR_Double_Check(0x10060004, 0x0, (0x55555555 & 0x3 | 0), 0x1, 0x3);
+
+    REG_PWR_Double_Check(0x10060004, 0x0, (0xAAAAAAAA & 0x3 | 0), 0x2, 0x3);
+
+    /*testing for  DDR_SCKSAMPLE: addr=0x10060008*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_ddr_scksample        field_range: 11:0             field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060008, 0x0, (0x00000000 & 0xfff | 0), 0x0, 0xfff);
+
+    REG_PWR_Double_Check(0x10060008, 0x0, (0xFFFFFFFF & 0xfff | 0), 0xfff, 0xfff);
+
+    REG_PWR_Double_Check(0x10060008, 0x0, (0x55555555 & 0xfff | 0), 0x555, 0xfff);
+
+    REG_PWR_Double_Check(0x10060008, 0x0, (0xAAAAAAAA & 0xfff | 0), 0xaaa, 0xfff);
+
+    /*testing for  FORCE: addr=0x1006000c*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_force_wp             field_range: 1:1              field_access: rw  
+    field_name: spi_force_en             field_range: 0:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x1006000c, 0x1, (0x00000000 & 0x3 | 0), 0x0, 0x3);
+
+    REG_PWR_Double_Check(0x1006000c, 0x1, (0xFFFFFFFF & 0x3 | 0), 0x3, 0x3);
+
+    REG_PWR_Double_Check(0x1006000c, 0x1, (0x55555555 & 0x3 | 0), 0x1, 0x3);
+
+    REG_PWR_Double_Check(0x1006000c, 0x1, (0xAAAAAAAA & 0x3 | 0), 0x2, 0x3);
+
+    /*testing for  CSID: addr=0x10060010*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_csid                 field_range: 2:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060010, 0x1, (0x00000000 & 0x7 | 0), 0x0, 0x7);
+
+    REG_PWR_Double_Check(0x10060010, 0x1, (0xFFFFFFFF & 0x7 | 0), 0x7, 0x7);
+
+    REG_PWR_Double_Check(0x10060010, 0x1, (0x55555555 & 0x7 | 0), 0x5, 0x7);
+
+    REG_PWR_Double_Check(0x10060010, 0x1, (0xAAAAAAAA & 0x7 | 0), 0x2, 0x7);
+
+    /*testing for  CSDEF: addr=0x10060014*/
+    /*
+    field_name: reserved                 field_range: 31:4             field_access: ro  
+    field_name: spi_csdef                field_range: 3:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060014, 0xf, (0x00000000 & 0xf | 0), 0x0, 0xf);
+
+    REG_PWR_Double_Check(0x10060014, 0xf, (0xFFFFFFFF & 0xf | 0), 0xf, 0xf);
+
+    REG_PWR_Double_Check(0x10060014, 0xf, (0x55555555 & 0xf | 0), 0x5, 0xf);
+
+    REG_PWR_Double_Check(0x10060014, 0xf, (0xAAAAAAAA & 0xf | 0), 0xa, 0xf);
+
+    /*testing for  CSMODE: addr=0x10060018*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_csmode               field_range: 1:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060018, 0x0, (0x00000000 & 0x3 | 0), 0x0, 0x3);
+
+    REG_PWR_Double_Check(0x10060018, 0x0, (0xFFFFFFFF & 0x3 | 0), 0x3, 0x3);
+
+    REG_PWR_Double_Check(0x10060018, 0x0, (0x55555555 & 0x3 | 0), 0x1, 0x3);
+
+    REG_PWR_Double_Check(0x10060018, 0x0, (0xAAAAAAAA & 0x3 | 0), 0x2, 0x3);
+
+    /*testing for RO VERSION: addr=0x1006001c*/
+    /*
+    field_name: spi_version              field_range: 31:0             field_access: ro  
+    */
+    REG_RO_Double_Check(0x1006001c, 0x20203, 0xFFFFFFFF);
+
+    /*testing for EWR ADDR_WRAP: addr=0x10060020*/
+    /*
+    field_name: spi_offset_addr          field_range: 31:0             field_access: rw  
+    */
+    REG_EWR_Double_Check(0x10060020, 0x0);
+
+    /*testing for EWR BOUNDARY_CFG: addr=0x10060024*/
+    /*
+    field_name: spi_boundry_cfg          field_range: 31:0             field_access: rw  
+    */
+    REG_EWR_Double_Check(0x10060024, 0x3ff);
+
+    /*testing for  DELAY0: addr=0x10060028*/
+    /*
+    field_name: reserved                 field_range: 31:24            field_access: ro  
+    field_name: spi_sckcs                field_range: 23:16            field_access: rw  
+    field_name: reserved                 field_range: 15:8             field_access: ro  
+    field_name: spi_cssck                field_range: 7:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060028, 0x10001, (0x00000000 & 0xff00ff | 0), 0x0, 0xff00ff);
+
+    REG_PWR_Double_Check(0x10060028, 0x10001, (0xFFFFFFFF & 0xff00ff | 0), 0xff00ff, 0xff00ff);
+
+    REG_PWR_Double_Check(0x10060028, 0x10001, (0x55555555 & 0xff00ff | 0), 0x550055, 0xff00ff);
+
+    REG_PWR_Double_Check(0x10060028, 0x10001, (0xAAAAAAAA & 0xff00ff | 0), 0xaa00aa, 0xff00ff);
+
+    /*testing for  DELAY1: addr=0x1006002c*/
+    /*
+    field_name: reserved                 field_range: 31:24            field_access: ro  
+    field_name: spi_interxfr             field_range: 23:16            field_access: rw  
+    field_name: reserved                 field_range: 15:8             field_access: ro  
+    field_name: spi_intercs              field_range: 7:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x1006002c, 0x3, (0x00000000 & 0xff00ff | 0), 0x0, 0xff00ff);
+
+    REG_PWR_Double_Check(0x1006002c, 0x3, (0xFFFFFFFF & 0xff00ff | 0), 0xff00ff, 0xff00ff);
+
+    REG_PWR_Double_Check(0x1006002c, 0x3, (0x55555555 & 0xff00ff | 0), 0x550055, 0xff00ff);
+
+    REG_PWR_Double_Check(0x1006002c, 0x3, (0xAAAAAAAA & 0xff00ff | 0), 0xaa00aa, 0xff00ff);
+
+    /*testing for RO FIFO_NUM: addr=0x10060030*/
+    /*
+    field_name: reserved                 field_range: 31:19            field_access: ro  
+    field_name: spi_rx_num               field_range: 18:16            field_access: ro  
+    field_name: reserved                 field_range: 15:3             field_access: ro  
+    field_name: spi_tx_num               field_range: 2:0              field_access: ro  
+    */
+    REG_RO_Double_Check(0x10060030, 0x0, 0xFFFFFFFF);
+
+    /*testing for  TXDATA: addr=0x10060048*/
+    /*
+    field_name: spi_txdata               field_range: 31:0             field_access: wo  
+    */
+    REG_PWR_Double_Check(0x10060048, 0x0, (0x00000000 & 0x0 | 0), 0x0, 0x0);
+
+    REG_PWR_Double_Check(0x10060048, 0x0, (0xFFFFFFFF & 0x0 | 0), 0x0, 0x0);
+
+    REG_PWR_Double_Check(0x10060048, 0x0, (0x55555555 & 0x0 | 0), 0x0, 0x0);
+
+    REG_PWR_Double_Check(0x10060048, 0x0, (0xAAAAAAAA & 0x0 | 0), 0x0, 0x0);
+
+    /*testing for  TX_MARK: addr=0x10060050*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_tx_mark              field_range: 2:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060050, 0x0, (0x00000000 & 0x7 | 0), 0x0, 0x7);
+
+    REG_PWR_Double_Check(0x10060050, 0x0, (0xFFFFFFFF & 0x7 | 0), 0x7, 0x7);
+
+    REG_PWR_Double_Check(0x10060050, 0x0, (0x55555555 & 0x7 | 0), 0x5, 0x7);
+
+    REG_PWR_Double_Check(0x10060050, 0x0, (0xAAAAAAAA & 0x7 | 0), 0x2, 0x7);
+
+    /*testing for  RX_MARK: addr=0x10060054*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_rx_mark              field_range: 2:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060054, 0x0, (0x00000000 & 0x7 | 0), 0x0, 0x7);
+
+    REG_PWR_Double_Check(0x10060054, 0x0, (0xFFFFFFFF & 0x7 | 0), 0x7, 0x7);
+
+    REG_PWR_Double_Check(0x10060054, 0x0, (0x55555555 & 0x7 | 0), 0x5, 0x7);
+
+    REG_PWR_Double_Check(0x10060054, 0x0, (0xAAAAAAAA & 0x7 | 0), 0x2, 0x7);
+
+    /*testing for  FCTRL: addr=0x10060060*/
+    /*
+    field_name: reserved                 field_range: 31:6             field_access: ro  
+    field_name: spi_boundary_en          field_range: 5:5              field_access: rw  
+    field_name: spi_flash_wrap_en        field_range: 4:4              field_access: rw  
+    field_name: spi_flash_burst_en       field_range: 3:3              field_access: rw  
+    field_name: spi_flash_wen            field_range: 2:2              field_access: rw  
+    field_name: spi_flash_wmask_en       field_range: 1:1              field_access: rw  
+    field_name: spi_flash_en             field_range: 0:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060060, 0x1, (0x00000000 & 0x3f | 0), 0x0, 0x3f);
+
+    REG_PWR_Double_Check(0x10060060, 0x1, (0xFFFFFFFF & 0x3f | 0), 0x3f, 0x3f);
+
+    REG_PWR_Double_Check(0x10060060, 0x1, (0x55555555 & 0x3f | 0), 0x15, 0x3f);
+
+    REG_PWR_Double_Check(0x10060060, 0x1, (0xAAAAAAAA & 0x3f | 0), 0x2a, 0x3f);
+
+    /*testing for  IE: addr=0x10060070*/
+    /*
+    field_name: reserved                 field_range: 31:15            field_access: ro  
+    field_name: spi_cfg_err_en           field_range: 14:14            field_access: rw  
+    field_name: reserved                 field_range: 13:13            field_access: ro  
+    field_name: spi_rx_done_en           field_range: 12:12            field_access: rw  
+    field_name: spi_tx_done_en           field_range: 11:11            field_access: rw  
+    field_name: reserved                 field_range: 10:8             field_access: ro  
+    field_name: spi_done_en              field_range: 7:7              field_access: rw  
+    field_name: reserved                 field_range: 6:6              field_access: ro  
+    field_name: spi_tx_ovr_en            field_range: 5:5              field_access: rw  
+    field_name: spi_rx_udr_en            field_range: 4:4              field_access: rw  
+    field_name: spi_rx_ovr_en            field_range: 3:3              field_access: rw  
+    field_name: spi_tx_udr_en            field_range: 2:2              field_access: rw  
+    field_name: spi_rx_irq_en            field_range: 1:1              field_access: rw  
+    field_name: spi_tx_irq_en            field_range: 0:0              field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060070, 0x0, (0x00000000 & 0x58bf | 0), 0x0, 0x58bf);
+
+    REG_PWR_Double_Check(0x10060070, 0x0, (0xFFFFFFFF & 0x58bf | 0), 0x58bf, 0x58bf);
+
+    REG_PWR_Double_Check(0x10060070, 0x0, (0x55555555 & 0x58bf | 0), 0x5015, 0x58bf);
+
+    REG_PWR_Double_Check(0x10060070, 0x0, (0xAAAAAAAA & 0x58bf | 0), 0x8aa, 0x58bf);
+
+    /*testing for  SDR_SCKSAMPLE: addr=0x10060080*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_sdr_scksample        field_range: 11:0             field_access: rw  
+    */
+    REG_PWR_Double_Check(0x10060080, 0x0, (0x00000000 & 0xfff | 0), 0x0, 0xfff);
+
+    REG_PWR_Double_Check(0x10060080, 0x0, (0xFFFFFFFF & 0xfff | 0), 0xfff, 0xfff);
+
+    REG_PWR_Double_Check(0x10060080, 0x0, (0x55555555 & 0xfff | 0), 0x555, 0xfff);
+
+    REG_PWR_Double_Check(0x10060080, 0x0, (0xAAAAAAAA & 0xfff | 0), 0xaaa, 0xfff);
+
+    delta_mcycle2=__RV_CSR_READ(CSR_MCYCLE)-start_mcycle2;
+
+    qspi_xip0_clk_div(0);
+
+    #endif
+
+    /*********************TEST FOR CLOCK DISABLE*********************/
+
+    #ifndef __HAS_SCRATCHPAD_MODE 
+        #if defined(__ICACHE_PRESENT) && __ICACHE_PRESENT == 1
+            EnableICache();
+        #endif
+    #endif
+    #if defined(__DCACHE_PRESENT) && __DCACHE_PRESENT == 1
+        EnableDCache();
+    #endif
+    __RV_CSR_SET(CSR_MMISC_CTL,MMISC_CTL_BPU);
+    #ifdef MISC_HAS_QSPI_XIP0_HAS_CLK
+
+    qspi_xip0_clk_en(DISABLE);
+
+    /*testing for  SCKDIV: addr=0x10060000*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_sckdiv               field_range: 11:0             field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060000);
+
+    /*testing for  SCKMODE: addr=0x10060004*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_cpol                 field_range: 1:1              field_access: rw  
+    field_name: spi_cpha                 field_range: 0:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060004);
+
+    /*testing for  DDR_SCKSAMPLE: addr=0x10060008*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_ddr_scksample        field_range: 11:0             field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060008);
+
+    /*testing for  FORCE: addr=0x1006000c*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_force_wp             field_range: 1:1              field_access: rw  
+    field_name: spi_force_en             field_range: 0:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x1006000c);
+
+    /*testing for  CSID: addr=0x10060010*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_csid                 field_range: 2:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060010);
+
+    /*testing for  CSDEF: addr=0x10060014*/
+    /*
+    field_name: reserved                 field_range: 31:4             field_access: ro  
+    field_name: spi_csdef                field_range: 3:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060014);
+
+    /*testing for  CSMODE: addr=0x10060018*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_csmode               field_range: 1:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060018);
+
+    /*testing for RO VERSION: addr=0x1006001c*/
+    /*
+    field_name: spi_version              field_range: 31:0             field_access: ro  
+    */
+    REG_CLK_DIS_CHECK(0x1006001c);
+
+    /*testing for EWR ADDR_WRAP: addr=0x10060020*/
+    /*
+    field_name: spi_offset_addr          field_range: 31:0             field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060020);
+
+    /*testing for EWR BOUNDARY_CFG: addr=0x10060024*/
+    /*
+    field_name: spi_boundry_cfg          field_range: 31:0             field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060024);
+
+    /*testing for  DELAY0: addr=0x10060028*/
+    /*
+    field_name: reserved                 field_range: 31:24            field_access: ro  
+    field_name: spi_sckcs                field_range: 23:16            field_access: rw  
+    field_name: reserved                 field_range: 15:8             field_access: ro  
+    field_name: spi_cssck                field_range: 7:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060028);
+
+    /*testing for  DELAY1: addr=0x1006002c*/
+    /*
+    field_name: reserved                 field_range: 31:24            field_access: ro  
+    field_name: spi_interxfr             field_range: 23:16            field_access: rw  
+    field_name: reserved                 field_range: 15:8             field_access: ro  
+    field_name: spi_intercs              field_range: 7:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x1006002c);
+
+    /*testing for RO FIFO_NUM: addr=0x10060030*/
+    /*
+    field_name: reserved                 field_range: 31:19            field_access: ro  
+    field_name: spi_rx_num               field_range: 18:16            field_access: ro  
+    field_name: reserved                 field_range: 15:3             field_access: ro  
+    field_name: spi_tx_num               field_range: 2:0              field_access: ro  
+    */
+    REG_CLK_DIS_CHECK(0x10060030);
+
+    /*testing for  TXDATA: addr=0x10060048*/
+    /*
+    field_name: spi_txdata               field_range: 31:0             field_access: wo  
+    */
+    REG_CLK_DIS_CHECK(0x10060048);
+
+    /*testing for  TX_MARK: addr=0x10060050*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_tx_mark              field_range: 2:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060050);
+
+    /*testing for  RX_MARK: addr=0x10060054*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_rx_mark              field_range: 2:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060054);
+
+    /*testing for  FCTRL: addr=0x10060060*/
+    /*
+    field_name: reserved                 field_range: 31:6             field_access: ro  
+    field_name: spi_boundary_en          field_range: 5:5              field_access: rw  
+    field_name: spi_flash_wrap_en        field_range: 4:4              field_access: rw  
+    field_name: spi_flash_burst_en       field_range: 3:3              field_access: rw  
+    field_name: spi_flash_wen            field_range: 2:2              field_access: rw  
+    field_name: spi_flash_wmask_en       field_range: 1:1              field_access: rw  
+    field_name: spi_flash_en             field_range: 0:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060060);
+
+    /*testing for  IE: addr=0x10060070*/
+    /*
+    field_name: reserved                 field_range: 31:15            field_access: ro  
+    field_name: spi_cfg_err_en           field_range: 14:14            field_access: rw  
+    field_name: reserved                 field_range: 13:13            field_access: ro  
+    field_name: spi_rx_done_en           field_range: 12:12            field_access: rw  
+    field_name: spi_tx_done_en           field_range: 11:11            field_access: rw  
+    field_name: reserved                 field_range: 10:8             field_access: ro  
+    field_name: spi_done_en              field_range: 7:7              field_access: rw  
+    field_name: reserved                 field_range: 6:6              field_access: ro  
+    field_name: spi_tx_ovr_en            field_range: 5:5              field_access: rw  
+    field_name: spi_rx_udr_en            field_range: 4:4              field_access: rw  
+    field_name: spi_rx_ovr_en            field_range: 3:3              field_access: rw  
+    field_name: spi_tx_udr_en            field_range: 2:2              field_access: rw  
+    field_name: spi_rx_irq_en            field_range: 1:1              field_access: rw  
+    field_name: spi_tx_irq_en            field_range: 0:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060070);
+
+    /*testing for  SDR_SCKSAMPLE: addr=0x10060080*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_sdr_scksample        field_range: 11:0             field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060080);
+
+    qspi_xip0_clk_en(ENABLE);
+
+    #endif
+
+    /*********************TEST FOR CLOCK RESET*********************/
+
+    #ifdef MISC_HAS_QSPI_XIP0_RST
+
+    qspi_xip0_set_rst(DISABLE);
+
+    /*testing for  SCKDIV: addr=0x10060000*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_sckdiv               field_range: 11:0             field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060000);
+
+    /*testing for  SCKMODE: addr=0x10060004*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_cpol                 field_range: 1:1              field_access: rw  
+    field_name: spi_cpha                 field_range: 0:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060004);
+
+    /*testing for  DDR_SCKSAMPLE: addr=0x10060008*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_ddr_scksample        field_range: 11:0             field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060008);
+
+    /*testing for  FORCE: addr=0x1006000c*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_force_wp             field_range: 1:1              field_access: rw  
+    field_name: spi_force_en             field_range: 0:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x1006000c);
+
+    /*testing for  CSID: addr=0x10060010*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_csid                 field_range: 2:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060010);
+
+    /*testing for  CSDEF: addr=0x10060014*/
+    /*
+    field_name: reserved                 field_range: 31:4             field_access: ro  
+    field_name: spi_csdef                field_range: 3:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060014);
+
+    /*testing for  CSMODE: addr=0x10060018*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_csmode               field_range: 1:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060018);
+
+    /*testing for RO VERSION: addr=0x1006001c*/
+    /*
+    field_name: spi_version              field_range: 31:0             field_access: ro  
+    */
+    REG_CLK_DIS_CHECK(0x1006001c);
+
+    /*testing for EWR ADDR_WRAP: addr=0x10060020*/
+    /*
+    field_name: spi_offset_addr          field_range: 31:0             field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060020);
+
+    /*testing for EWR BOUNDARY_CFG: addr=0x10060024*/
+    /*
+    field_name: spi_boundry_cfg          field_range: 31:0             field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060024);
+
+    /*testing for  DELAY0: addr=0x10060028*/
+    /*
+    field_name: reserved                 field_range: 31:24            field_access: ro  
+    field_name: spi_sckcs                field_range: 23:16            field_access: rw  
+    field_name: reserved                 field_range: 15:8             field_access: ro  
+    field_name: spi_cssck                field_range: 7:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060028);
+
+    /*testing for  DELAY1: addr=0x1006002c*/
+    /*
+    field_name: reserved                 field_range: 31:24            field_access: ro  
+    field_name: spi_interxfr             field_range: 23:16            field_access: rw  
+    field_name: reserved                 field_range: 15:8             field_access: ro  
+    field_name: spi_intercs              field_range: 7:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x1006002c);
+
+    /*testing for RO FIFO_NUM: addr=0x10060030*/
+    /*
+    field_name: reserved                 field_range: 31:19            field_access: ro  
+    field_name: spi_rx_num               field_range: 18:16            field_access: ro  
+    field_name: reserved                 field_range: 15:3             field_access: ro  
+    field_name: spi_tx_num               field_range: 2:0              field_access: ro  
+    */
+    REG_CLK_DIS_CHECK(0x10060030);
+
+    /*testing for  TXDATA: addr=0x10060048*/
+    /*
+    field_name: spi_txdata               field_range: 31:0             field_access: wo  
+    */
+    REG_CLK_DIS_CHECK(0x10060048);
+
+    /*testing for  TX_MARK: addr=0x10060050*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_tx_mark              field_range: 2:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060050);
+
+    /*testing for  RX_MARK: addr=0x10060054*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_rx_mark              field_range: 2:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060054);
+
+    /*testing for  FCTRL: addr=0x10060060*/
+    /*
+    field_name: reserved                 field_range: 31:6             field_access: ro  
+    field_name: spi_boundary_en          field_range: 5:5              field_access: rw  
+    field_name: spi_flash_wrap_en        field_range: 4:4              field_access: rw  
+    field_name: spi_flash_burst_en       field_range: 3:3              field_access: rw  
+    field_name: spi_flash_wen            field_range: 2:2              field_access: rw  
+    field_name: spi_flash_wmask_en       field_range: 1:1              field_access: rw  
+    field_name: spi_flash_en             field_range: 0:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060060);
+
+    /*testing for  IE: addr=0x10060070*/
+    /*
+    field_name: reserved                 field_range: 31:15            field_access: ro  
+    field_name: spi_cfg_err_en           field_range: 14:14            field_access: rw  
+    field_name: reserved                 field_range: 13:13            field_access: ro  
+    field_name: spi_rx_done_en           field_range: 12:12            field_access: rw  
+    field_name: spi_tx_done_en           field_range: 11:11            field_access: rw  
+    field_name: reserved                 field_range: 10:8             field_access: ro  
+    field_name: spi_done_en              field_range: 7:7              field_access: rw  
+    field_name: reserved                 field_range: 6:6              field_access: ro  
+    field_name: spi_tx_ovr_en            field_range: 5:5              field_access: rw  
+    field_name: spi_rx_udr_en            field_range: 4:4              field_access: rw  
+    field_name: spi_rx_ovr_en            field_range: 3:3              field_access: rw  
+    field_name: spi_tx_udr_en            field_range: 2:2              field_access: rw  
+    field_name: spi_rx_irq_en            field_range: 1:1              field_access: rw  
+    field_name: spi_tx_irq_en            field_range: 0:0              field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060070);
+
+    /*testing for  SDR_SCKSAMPLE: addr=0x10060080*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_sdr_scksample        field_range: 11:0             field_access: rw  
+    */
+    REG_CLK_DIS_CHECK(0x10060080);
+
+    qspi_xip0_set_rst(ENABLE);
+
+    /*testing for  SCKDIV: addr=0x10060000*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_sckdiv               field_range: 11:0             field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060000,0x4);
+
+    /*testing for  SCKMODE: addr=0x10060004*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_cpol                 field_range: 1:1              field_access: rw  
+    field_name: spi_cpha                 field_range: 0:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060004,0x0);
+
+    /*testing for  DDR_SCKSAMPLE: addr=0x10060008*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_ddr_scksample        field_range: 11:0             field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060008,0x0);
+
+    /*testing for  FORCE: addr=0x1006000c*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_force_wp             field_range: 1:1              field_access: rw  
+    field_name: spi_force_en             field_range: 0:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x1006000c,0x1);
+
+    /*testing for  CSID: addr=0x10060010*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_csid                 field_range: 2:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060010,0x1);
+
+    /*testing for  CSDEF: addr=0x10060014*/
+    /*
+    field_name: reserved                 field_range: 31:4             field_access: ro  
+    field_name: spi_csdef                field_range: 3:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060014,0xf);
+
+    /*testing for  CSMODE: addr=0x10060018*/
+    /*
+    field_name: reserved                 field_range: 31:2             field_access: ro  
+    field_name: spi_csmode               field_range: 1:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060018,0x0);
+
+    /*testing for RO VERSION: addr=0x1006001c*/
+    /*
+    field_name: spi_version              field_range: 31:0             field_access: ro  
+    */
+    REG_DefVal_CHECK(0x1006001c,0x20203);
+
+    /*testing for EWR ADDR_WRAP: addr=0x10060020*/
+    /*
+    field_name: spi_offset_addr          field_range: 31:0             field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060020,0x0);
+
+    /*testing for EWR BOUNDARY_CFG: addr=0x10060024*/
+    /*
+    field_name: spi_boundry_cfg          field_range: 31:0             field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060024,0x3ff);
+
+    /*testing for  DELAY0: addr=0x10060028*/
+    /*
+    field_name: reserved                 field_range: 31:24            field_access: ro  
+    field_name: spi_sckcs                field_range: 23:16            field_access: rw  
+    field_name: reserved                 field_range: 15:8             field_access: ro  
+    field_name: spi_cssck                field_range: 7:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060028,0x10001);
+
+    /*testing for  DELAY1: addr=0x1006002c*/
+    /*
+    field_name: reserved                 field_range: 31:24            field_access: ro  
+    field_name: spi_interxfr             field_range: 23:16            field_access: rw  
+    field_name: reserved                 field_range: 15:8             field_access: ro  
+    field_name: spi_intercs              field_range: 7:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x1006002c,0x3);
+
+    /*testing for RO FIFO_NUM: addr=0x10060030*/
+    /*
+    field_name: reserved                 field_range: 31:19            field_access: ro  
+    field_name: spi_rx_num               field_range: 18:16            field_access: ro  
+    field_name: reserved                 field_range: 15:3             field_access: ro  
+    field_name: spi_tx_num               field_range: 2:0              field_access: ro  
+    */
+    REG_DefVal_CHECK(0x10060030,0x0);
+
+    /*testing for  TXDATA: addr=0x10060048*/
+    /*
+    field_name: spi_txdata               field_range: 31:0             field_access: wo  
+    */
+    REG_DefVal_CHECK(0x10060048,0x0);
+
+    /*testing for  TX_MARK: addr=0x10060050*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_tx_mark              field_range: 2:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060050,0x0);
+
+    /*testing for  RX_MARK: addr=0x10060054*/
+    /*
+    field_name: reserved                 field_range: 31:3             field_access: ro  
+    field_name: spi_rx_mark              field_range: 2:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060054,0x0);
+
+    /*testing for  FCTRL: addr=0x10060060*/
+    /*
+    field_name: reserved                 field_range: 31:6             field_access: ro  
+    field_name: spi_boundary_en          field_range: 5:5              field_access: rw  
+    field_name: spi_flash_wrap_en        field_range: 4:4              field_access: rw  
+    field_name: spi_flash_burst_en       field_range: 3:3              field_access: rw  
+    field_name: spi_flash_wen            field_range: 2:2              field_access: rw  
+    field_name: spi_flash_wmask_en       field_range: 1:1              field_access: rw  
+    field_name: spi_flash_en             field_range: 0:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060060,0x1);
+
+    /*testing for  IE: addr=0x10060070*/
+    /*
+    field_name: reserved                 field_range: 31:15            field_access: ro  
+    field_name: spi_cfg_err_en           field_range: 14:14            field_access: rw  
+    field_name: reserved                 field_range: 13:13            field_access: ro  
+    field_name: spi_rx_done_en           field_range: 12:12            field_access: rw  
+    field_name: spi_tx_done_en           field_range: 11:11            field_access: rw  
+    field_name: reserved                 field_range: 10:8             field_access: ro  
+    field_name: spi_done_en              field_range: 7:7              field_access: rw  
+    field_name: reserved                 field_range: 6:6              field_access: ro  
+    field_name: spi_tx_ovr_en            field_range: 5:5              field_access: rw  
+    field_name: spi_rx_udr_en            field_range: 4:4              field_access: rw  
+    field_name: spi_rx_ovr_en            field_range: 3:3              field_access: rw  
+    field_name: spi_tx_udr_en            field_range: 2:2              field_access: rw  
+    field_name: spi_rx_irq_en            field_range: 1:1              field_access: rw  
+    field_name: spi_tx_irq_en            field_range: 0:0              field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060070,0x0);
+
+    /*testing for  SDR_SCKSAMPLE: addr=0x10060080*/
+    /*
+    field_name: reserved                 field_range: 31:12            field_access: ro  
+    field_name: spi_sdr_scksample        field_range: 11:0             field_access: rw  
+    */
+    REG_DefVal_CHECK(0x10060080,0x0);
+
+    #endif
+
+    #ifdef MISC_HAS_QSPI_XIP0_CLK_DIV
+
+    #if defined(__ICACHE_PRESENT) && __ICACHE_PRESENT == 1
+        DisableICache();
+    #endif
+    #if defined(__DCACHE_PRESENT) && __DCACHE_PRESENT == 1
+        DisableDCache();
+    #endif
+    if(delta_mcycle1<delta_mcycle2)
+
+        {state0=1;}
+
+    if(Index > 0||state0==0){debug("reg test fail\r\n"); simulation_fail();} else{ debug("reg test pass\r\n");  simulation_pass();}
+
+    #else
+
+    if(Index > 0){debug("reg test fail\r\n"); simulation_fail();} else{ debug("reg test pass\r\n");  simulation_pass();}
+
+    #endif
+
+}

@@ -1,0 +1,5 @@
++TEST_LOOPBACK=qspi_xip0_psram_connect
+
++TEST_TO_VALUE=3000000000
+
++fast_sim

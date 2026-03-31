@@ -1,0 +1,2 @@
++TEST_BOOT_TYPE=parallel_boot
++IDU_TEST=event_gpio

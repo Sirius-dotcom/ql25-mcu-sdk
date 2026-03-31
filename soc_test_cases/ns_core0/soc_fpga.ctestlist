@@ -1,0 +1,7 @@
+jtag_chain_2wire
+jtag_chain_4wire
+sram_cpu_mode_test
+big_sram_internal_test
+full_addr_scan
+tb_sram_scan
+sram_dma_mode_test

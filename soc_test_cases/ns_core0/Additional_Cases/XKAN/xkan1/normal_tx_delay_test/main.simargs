@@ -1,0 +1,8 @@
+
++TEST_LOOPBACK=xkan1_xkan0_connect
++XKAN1_TRANSCEIVER = xkan1_transceiver_connect
++XKAN0_TRANSCEIVER = xkan0_transceiver_connect
+
++XKAN_DELAY=xkan1_tx_delay
+
++SYS_CLK_PERIOD=12.5

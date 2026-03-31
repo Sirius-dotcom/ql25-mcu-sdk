@@ -1,0 +1,180 @@
+/**
+  * Copyright (c) 2019 Nuclei Limited. All rights reserved.
+  *
+  * SPDX-License-Identifier: Apache-2.0
+  *
+  * Licensed under the Apache License, Version 2.0 (the License); you may
+  * not use this file except in compliance with the License.
+  * You may obtain a copy of the License at
+  *
+  * www.apache.org/licenses/LICENSE-2.0
+  *
+  * Unless required by applicable law or agreed to in writing, software
+  * distributed under the License is distributed on an AS IS BASIS, WITHOUT
+  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+
+#include <stdio.h>
+#include <string.h>
+#include "ns_sdk_hal.h"
+
+#define SOC_CLK                (SystemCoreClock)
+
+#define I2C0_SPEED             (100000)
+#define I3_SLAVE_ADDRESS1 (0x62)
+#define I3_SLAVE_ADDRESS2 (0x72)
+#define ARRAYNUM(arr_nanme)    (uint32_t)(sizeof(arr_nanme) / sizeof(*(arr_nanme)))
+#define BUFFER_SIZE            (10)
+
+volatile ErrStatus state = ERROR;
+volatile int  send_flag = 0;
+volatile  int receive_flag = 0;
+uint32_t *dst_base_addr = NULL;
+uint32_t *src_base_addr = NULL;
+/**
+  * \brief memory compare function
+  *
+  * \param src: source data pointer
+  * \param dst: destination data pointer
+  * \param length: the compare data length
+  *
+  * \retval ErrStatus: ERROR or SUCCESS
+  */
+ErrStatus MemoryCompare(uint32_t* src, uint32_t* dst, uint16_t length)
+{
+    while (length--) {
+        if(*src++ != *dst++) {
+            return ERROR;
+        }
+    }
+    return SUCCESS;
+}
+
+/**
+  * \brief cofigure the I2C0 and I3 interfaces
+  */
+void I2C_Config(void)
+{
+    I2C_InitTypeDef init = {0};
+    init.speed = I2C_SPEED_100K;
+    init.time_cfg = DISABLE;
+    init.auto_end = DISABLE;
+    init.mode = I2C_MASTER_MODE;
+    init.scl_pull = ENABLE;
+    init.sda_pull = ENABLE;
+    
+    I2C_Init(I2C0, &init);
+
+    init.mode = I2C_SLAVE_MODE;
+    
+    init.slave_info1.slave_addr = I3_SLAVE_ADDRESS1;
+    init.slave_info1.slave_addr_mask = 0x3FF;
+    init.slave_info1.slave_addr_en = ENABLE;
+    I2C_Init(I3, &init);
+}
+
+void main(void)
+{
+    #if defined(__DCACHE_PRESENT) && __DCACHE_PRESENT == 1
+    DisableDCache();
+    #endif
+
+    #ifdef MISC_HAS_I2C0_HAS_CLK
+    i2c0_clk_en(ENABLE);
+    #endif
+    #ifdef MISC_HAS_I2C0_RST
+    i2c0_set_rst(DISABLE);
+    i2c0_set_rst(ENABLE);
+    #endif
+    
+    #ifdef MISC_HAS_UDMA0_HAS_CLK
+    udma0_clk_en(ENABLE);
+    #endif
+    #ifdef MISC_HAS_UDMA0_RST
+    udma0_set_rst(DISABLE);
+    udma0_set_rst(ENABLE);
+    #endif
+
+    #ifdef MISC_HAS_UDMA_HAS_CLK
+    udma_clk_en(ENABLE);
+    #endif
+    #ifdef MISC_HAS_UDMA_RST
+    udma_set_rst(DISABLE);
+    udma_set_rst(ENABLE);
+    #endif
+
+    dst_base_addr = (uint32_t *)(0x9000000 + 32768 - 0x200);
+    src_base_addr = (uint32_t *)(0x9000000 + 32768 - 0x100);
+    uint32_t *ptmp_data = src_base_addr;
+    for(int i = 0; i < BUFFER_SIZE; i++) {
+        *ptmp_data++ = ((uint32_t)(i * 4 + 0) << 24 | (uint32_t)(i * 4 + 1) << 16 | (uint32_t)(i * 4 + 2) << 8 | (uint32_t)(i * 4 + 3));
+    }
+
+    I2C_Config();
+
+    /* send slave address to I2C bus */
+    I2C_Send_SlaveAddr(I2C0, I3_SLAVE_ADDRESS1, I2C_DIR_READ, 0xFFFFFFFF);
+    while (!I2C_Get_Status(I3, I2C_STATUS_ADDR_MATCH)) {}
+    I2C_Clear_Status(I3,I2C_STATUS_ADDR_MATCH );
+    while (!I2C_Get_Status(I2C0, I2C_STATUS_ADDR_MATCH)) {}
+    I2C_Clear_Status(I2C0,I2C_STATUS_ADDR_MATCH );
+
+    UDMA_PAM2MTypeDef UDMA_PAM2MStruct = {0};
+    UDMA_PAM2MStruct.UDMA_TransEn = PA2M_TRANS_ENABLE;
+    UDMA_PAM2MStruct.UDMA_DstBaseAddr = CAL_ADDR_LO(dst_base_addr);
+    UDMA_PAM2MStruct.UDMA_SrcBaseAddr = CAL_ADDR_LO(&(I2C0->RXDATA));
+#if defined(SOC_ADDRESS_HIGH_VALID) && SOC_ADDRESS_HIGH_VALID == 1
+    UDMA_PAM2MStruct.UDMA_DstBaseAddr_H = CAL_ADDR_HI(dst_base_addr);
+    UDMA_PAM2MStruct.UDMA_SrcBaseAddr_H = CAL_ADDR_HI(&(I2C0->RXDATA));
+#endif
+    UDMA_PAM2MStruct.UDMA_BufferSize = BUFFER_SIZE*4;
+    UDMA_PAM2MStruct.UDMA_DstInc = PA2M_MDNA_ENABLE;
+    UDMA_PAM2MStruct.UDMA_SrcInc = PA2M_MSNA_DISABLE;
+    UDMA_PAM2MStruct.UDMA_Width = PA2M_MDWIDTH_8BIT;
+    UDMA_PAM2MStruct.UDMA_Mode = PA2M_MODE_NORMAL;
+    UDMA_PAM2MStruct.UDMA_PER_SEL = UDMA_SEL_I2C0_I2C_DMA_RX;
+    UDMA_PAM2M_Init(I2C0_I2C_DMA_RX_DMA_CH, &UDMA_PAM2MStruct);
+
+    UDMA_PAM2MStruct.UDMA_TransEn = PA2M_TRANS_ENABLE;
+    UDMA_PAM2MStruct.UDMA_DstBaseAddr = CAL_ADDR_LO(&(I3->TXDATA));
+    UDMA_PAM2MStruct.UDMA_SrcBaseAddr = CAL_ADDR_LO(src_base_addr);
+#if defined(SOC_ADDRESS_HIGH_VALID) && SOC_ADDRESS_HIGH_VALID == 1
+    UDMA_PAM2MStruct.UDMA_DstBaseAddr_H = CAL_ADDR_HI(&(I3->TXDATA));
+    UDMA_PAM2MStruct.UDMA_SrcBaseAddr_H = CAL_ADDR_HI(src_base_addr);
+#endif
+    UDMA_PAM2MStruct.UDMA_BufferSize = BUFFER_SIZE*4;
+    UDMA_PAM2MStruct.UDMA_DstInc = PA2M_MDNA_DISABLE;
+    UDMA_PAM2MStruct.UDMA_SrcInc = PA2M_MSNA_ENABLE;
+    UDMA_PAM2MStruct.UDMA_Width = PA2M_MDWIDTH_8BIT;
+    UDMA_PAM2MStruct.UDMA_Mode = PA2M_MODE_NORMAL;
+    UDMA_PAM2MStruct.UDMA_PER_SEL = UDMA_SEL_I3_I2C_DMA_TX;  
+    UDMA_PAM2M_Init(I3_I2C_DMA_TX_DMA_CH, &UDMA_PAM2MStruct);
+
+    I2C_Set_TxSize(I3, BUFFER_SIZE*4);
+    I2C_Set_RxSize(I2C0, BUFFER_SIZE*4);
+
+    I2C_RxDma_Start(I2C0, ENABLE);
+    I2C_TxDma_Start(I3, ENABLE);
+
+    I2C_Dma_Cfg(I3, ENABLE);
+    I2C_Dma_Cfg(I2C0, ENABLE);
+    
+    while (!I2C_Get_Status(I2C0, I2C_STATUS_EOT)) {}
+    I2C_Clear_Status(I2C0, I2C_STATUS_EOT);
+    
+    while (!I2C_Get_Status(I3, I2C_STATUS_EOT)) {}
+    I2C_Clear_Status(I3, I2C_STATUS_EOT);
+
+    I2C_Stop(I2C0);
+    I2C_WaitStopOver(I2C0);
+
+    state = MemoryCompare((uint32_t *)src_base_addr, (uint32_t *)dst_base_addr, BUFFER_SIZE);
+    if (SUCCESS == state) {
+        simulation_pass();
+    } else {
+        simulation_fail();
+    }
+    while (1) {}
+}

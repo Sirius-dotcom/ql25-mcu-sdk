@@ -1,0 +1,8 @@
+UDMA_udma0_M2m
+UDMA_udma0_M2m_burst
+UDMA_udma0_M2m_int
+UDMA_udma0_M2m_repeat_mode
+UDMA_udma0_M2m_continue_mode
+UDMA_udma0_M2m_fixed_addr
+UDMA_udma0_M2m_src_c_dst_f
+UDMA_udma0_M2m_src_f_dst_c

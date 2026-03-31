@@ -1,0 +1,7 @@
++incdir+$PROJ_SRC_ROOT/soc_verif/basic_timer/ctests
+
+$PROJ_SRC_ROOT/soc_verif/basic_timer/ctests/cpu_config/main.c
+$PROJ_SRC_ROOT/soc_verif/basic_timer/ctests/cpu_config/README.TXT
+
+$PROJ_SRC_ROOT/soc_verif/basic_timer/ctests/dma_config/main.c
+$PROJ_SRC_ROOT/soc_verif/basic_timer/ctests/dma_config/README.TXT

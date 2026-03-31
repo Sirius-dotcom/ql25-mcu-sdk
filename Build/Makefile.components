@@ -1,0 +1,20 @@
+ifneq ($(COMPONENTS),)
+ifneq ($(wildcard $(NUCLEI_SDK_COMPONENTS)),)
+MAKEFILE_PREREQS += $(NUCLEI_SDK_BUILD)/Makefile.components
+
+COMPONENTS_SORTED := $(sort $(COMPONENTS))
+COMPONENTS_BUILD_MAKEFILES := $(foreach MID, $(COMPONENTS_SORTED), $(wildcard $(NUCLEI_SDK_COMPONENTS)/$(MID)/build.mk))
+
+# build.mk is necessary for COMPONENTSs
+ifneq ($(wildcard $(COMPONENTS_BUILD_MAKEFILES)),)
+MAKEFILE_PREREQS += $(COMPONENTS_BUILD_MAKEFILES)
+include $(COMPONENTS_BUILD_MAKEFILES)
+else
+$(error build.mk might not exist in one of the COMPONENTS $(COMPONENTS_SORTED))
+endif
+
+# Define WITH_COMPONENT_$(MID) to show components, such as WITH_COMPONENT_TJPGD
+COMPONENTS_WITH_DEFINES := $(foreach MID, $(COMPONENTS_SORTED), -DWITH_COMPONENT_$(call uc, $(MID)))
+COMMON_FLAGS += $(COMPONENTS_WITH_DEFINES)
+endif
+endif

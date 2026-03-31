@@ -1,0 +1,1 @@
++tb_sram_scan +CORE_LIST=core0,cluster0_core0

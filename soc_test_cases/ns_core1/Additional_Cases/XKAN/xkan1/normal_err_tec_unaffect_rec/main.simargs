@@ -1,0 +1,8 @@
+
++TEST_LOOPBACK=xkan1_xkan0_connect
++XKAN1_TRANSCEIVER = xkan1_transceiver_connect
++XKAN0_TRANSCEIVER = xkan0_transceiver_connect
++XKAN1_DISTURB=xkan1_fmt_err_crc_delimiter
++XKAN0_DISTURB=xkan0_fmt_err_crc_delimiter
+
++TEST_TO_VALUE=3000000000

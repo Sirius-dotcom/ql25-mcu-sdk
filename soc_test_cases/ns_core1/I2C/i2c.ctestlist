@@ -1,0 +1,8 @@
+I2C_i2c1_reg_test
+I2C_i2c0_reg_test
+I2C_i2c0_I2C_eeprom_polling
+I2C_i2c0_I2C_eeprom_int
+I2C_i2c0_I2C_eeprom_padma
+I2C_i2c1_I2C_eeprom_polling
+I2C_i2c1_I2C_eeprom_int
+I2C_i2c1_I2C_eeprom_padma

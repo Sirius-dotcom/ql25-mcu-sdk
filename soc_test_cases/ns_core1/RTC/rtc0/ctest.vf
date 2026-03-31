@@ -1,0 +1,17 @@
+$PROJ_SRC_ROOT/soc_verif/rtc/ctests/alarm_int/main.c
+$PROJ_SRC_ROOT/soc_verif/rtc/ctests/alarm_int/README.TXT
+
+$PROJ_SRC_ROOT/soc_verif/rtc/ctests/overwrite_int/main.c
+$PROJ_SRC_ROOT/soc_verif/rtc/ctests/overwrite_int/README.TXT
+
+$PROJ_SRC_ROOT/soc_verif/rtc/ctests/second_int/main.c
+$PROJ_SRC_ROOT/soc_verif/rtc/ctests/second_int/README.TXT
+
+$PROJ_SRC_ROOT/soc_verif/rtc/ctests/counter_get/main.c
+$PROJ_SRC_ROOT/soc_verif/rtc/ctests/counter_get/README.TXT
+
+$PROJ_SRC_ROOT/soc_verif/rtc/ctests/div_get/main.c
+$PROJ_SRC_ROOT/soc_verif/rtc/ctests/div_get/README.TXT
+
+$PROJ_SRC_ROOT/soc_verif/rtc/ctests/alarm/main.c
+$PROJ_SRC_ROOT/soc_verif/rtc/ctests/alarm/README.TXT

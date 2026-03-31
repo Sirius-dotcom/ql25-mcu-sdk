@@ -1,0 +1,4 @@
+
++TEST_LOOPBACK=qspi3_qspi2_4line_connect
+
++fast_sim

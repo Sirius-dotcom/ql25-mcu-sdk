@@ -1,0 +1,10 @@
+
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_sdcard_fatfs/main.c
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_sdcard_fatfs/ffconf.h
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_sdcard_fatfs/user_diskio.c
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_sdcard_fatfs/README.TXT
+
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_flash_fatfs/main.c
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_flash_fatfs/ffconf.h
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_flash_fatfs/user_diskio.c
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_flash_fatfs/README.TXT

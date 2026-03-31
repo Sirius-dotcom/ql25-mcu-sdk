@@ -1,0 +1,17 @@
+
++incdir+$PROJ_SRC_ROOT/soc_verif/nuclei_ctest_gen/sdk/gnrl
+
+$PROJ_SRC_ROOT/soc_verif/dummy_master/ctests/ram_write_read_burst2/main.c
+$PROJ_SRC_ROOT/soc_verif/dummy_master/ctests/ram_write_read_burst2/README.TXT
+
+$PROJ_SRC_ROOT/soc_verif/dummy_master/ctests/ram_write_read_burst4/main.c
+$PROJ_SRC_ROOT/soc_verif/dummy_master/ctests/ram_write_read_burst4/README.TXT
+
+$PROJ_SRC_ROOT/soc_verif/dummy_master/ctests/ram_write_read_burst8/main.c
+$PROJ_SRC_ROOT/soc_verif/dummy_master/ctests/ram_write_read_burst8/README.TXT
+
+$PROJ_SRC_ROOT/soc_verif/dummy_master/ctests/ram_write_read_burst16/main.c
+$PROJ_SRC_ROOT/soc_verif/dummy_master/ctests/ram_write_read_burst16/README.TXT
+
+$PROJ_SRC_ROOT/soc_verif/dummy_master/ctests/ram_write_read_burst32/main.c
+$PROJ_SRC_ROOT/soc_verif/dummy_master/ctests/ram_write_read_burst32/README.TXT

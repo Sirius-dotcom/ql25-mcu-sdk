@@ -1,0 +1,2 @@
++ADV_TIMER_TEST=adv_timer_check
++TEST_TO_VALUE=120000000

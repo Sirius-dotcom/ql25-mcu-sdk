@@ -1,0 +1,1 @@
+## The driver is based on w25q256, if you are using other flash chips, you will need to modify the driver configuration.

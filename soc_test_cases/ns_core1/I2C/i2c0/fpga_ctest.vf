@@ -1,0 +1,3 @@
+$PROJ_SRC_ROOT/soc_verif/i2c/ctests/I2C/24LC04B/main.c
+$PROJ_SRC_ROOT/soc_verif/i2c/ctests/I2C/24LC04B/main.simargs
+$PROJ_SRC_ROOT/soc_verif/i2c/ctests/I2C/24LC04B/README.TXT

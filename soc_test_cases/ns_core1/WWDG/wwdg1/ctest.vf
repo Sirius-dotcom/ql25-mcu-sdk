@@ -1,0 +1,9 @@
+
+$PROJ_SRC_ROOT/soc_verif/wwdg/ctests/delay_feed_reset/README.TXT
+$PROJ_SRC_ROOT/soc_verif/wwdg/ctests/delay_feed_reset/main.c
+
+$PROJ_SRC_ROOT/soc_verif/wwdg/ctests/early_feed_reset/main.c
+$PROJ_SRC_ROOT/soc_verif/wwdg/ctests/early_feed_reset/README.TXT
+
+$PROJ_SRC_ROOT/soc_verif/wwdg/ctests/nmi/main.c
+$PROJ_SRC_ROOT/soc_verif/wwdg/ctests/nmi/README.TXT

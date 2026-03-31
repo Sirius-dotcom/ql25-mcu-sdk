@@ -1,0 +1,3 @@
++TEST_LOOPBACK=qspi1_flash_connect
+
++fast_sim

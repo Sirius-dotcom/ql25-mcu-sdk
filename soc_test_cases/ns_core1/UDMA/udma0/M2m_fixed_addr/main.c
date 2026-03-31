@@ -1,0 +1,128 @@
+#include <stdio.h>
+#include "nuclei_sdk_hal.h"
+
+#define SRC_DATA_ACC_ADDR_BASE           (0x9000000 + 32768 - 0x200)
+#define DES_DATA_ACC_ADDR_BASE           (0x9000000 + 32768 - 0x100)
+
+static uint8_t __attribute__ ((aligned (64))) src_buffer_8[256] = {0x12,0x5a,0xa5,0xaa,0x55,0xa5,0x12,0x56,0x34,0x78,0x12,0x78,0x12,0x78,0x34,0x78,
+                            0x12,0x5a,0xa5,0xaa,0x55,0xa5,0x12,0x56,0x34,0x78,0x12,0x78,0x12,0x78,0x34,0x78,
+                            0x12,0x5a,0xa5,0xaa,0x55,0xa5,0x12,0x56,0x34,0x78,0x12,0x78,0x12,0x78,0x34,0x78,
+                            0x12,0x5a,0xa5,0xaa,0x55,0xa5,0x12,0x56,0x34,0x78,0x12,0x78,0x12,0x78,0x34,0x78,
+                            0x12,0x5a,0xa5,0xaa,0x55,0xa5,0x12,0x56,0x34,0x78,0x12,0x78,0x12,0x78,0x34,0x78,
+                            0x12,0x5a,0xa5,0xaa,0x55,0xa5,0x12,0x56,0x34,0x78,0x12,0x78,0x12,0x78,0x34,0x78,
+                            0x12,0x5a,0xa5,0xaa,0x55,0xa5,0x12,0x56,0x34,0x78,0x12,0x78,0x12,0x78,0x34,0x78,
+                            0x12,0x5a,0xa5,0xaa,0x55,0xa5,0x12,0x56,0x34,0x78,0x12,0x78,0x12,0x78,0x34,0x78,
+                            0x12,0x5a,0xa5,0xaa,0x55,0xa5,0x12,0x56,0x34,0x78,0x12,0x78,0x12,0x78,0x34,0x78,
+                            0x12,0x5a,0xa5,0xaa,0x55,0xa5,0x12,0x56,0x34,0x78,0x12,0x78,0x12,0x78,0x34,0x78,
+                            0x12,0x5a,0xa5,0xaa,0x55,0xa5,0x12,0x56,0x34,0x78,0x12,0x78,0x12,0x78,0x34,0x78,
+                            0x12,0x5a,0xa5,0xaa,0x55,0xa5,0x12,0x56,0x34,0x78,0x12,0x78,0x12,0x78,0x34,0x78,
+                            0x12,0x5a,0xa5,0xaa,0x55,0xa5,0x12,0x56,0x34,0x78,0x12,0x78,0x12,0x78,0x34,0x78,
+                            0x12,0x5a,0xa5,0xaa,0x55,0xa5,0x12,0x56,0x34,0x78,0x12,0x78,0x12,0x78,0x34,0x78,
+                            0x12,0x5a,0xa5,0xaa,0x55,0xa5,0x12,0x56,0x34,0x78,0x12,0x78,0x12,0x78,0x34,0x78,
+                            0x12,0x5a,0xa5,0xaa,0x55,0xa5,0x12,0x56,0x34,0x78,0x12,0x78,0x12,0x78,0x34,0x78,};
+static uint8_t __attribute__ ((aligned (64))) dst_buffer_8[256] = {0};
+
+UDMA_InitTypeDef  UDMA_InitStruct = {0};
+volatile uint8_t soft_stop_flg = 0;
+volatile uint8_t state = 1;
+
+void UDMA0_IRQHandler(void)
+{
+    static int i = 0;
+    static uint32_t cnt = 0;
+    
+    if (UDMA_GetITStatus(UDMA0_CH0_M2M_IRQ, UDMA_FTRANS_IRQ) == SET) {
+        UDMA_ClearITStatus(UDMA0_CH0_M2M_IRQ, UDMA_FTRANS_IRQ);
+
+        cnt++;
+        if (((uint8_t*)(CAL_ADDR(SRC_DATA_ACC_ADDR_BASE)))[i] != ((uint8_t*)(CAL_ADDR(DES_DATA_ACC_ADDR_BASE)))[i]) {
+            printf("des[%d]: %x\r\n", i, ((uint8_t*)(CAL_ADDR(DES_DATA_ACC_ADDR_BASE)))[i]);
+            state = 0;
+        } else if(cnt == 100) {
+            
+            M2M_DMA_Cmd(UDMA0_M2M_CH0, DISABLE);
+            soft_stop_flg = 1;
+        } else {
+            
+            i++;
+            UDMA_InitStruct.UDMA_DstBaseAddr = CAL_ADDR((DES_DATA_ACC_ADDR_BASE + i));
+            UDMA_InitStruct.UDMA_SrcBaseAddr = CAL_ADDR((SRC_DATA_ACC_ADDR_BASE + i));
+            UDMA_Init(UDMA0_M2M_CH0, &UDMA_InitStruct);
+
+            /* Global interrupt enable*/
+            
+            M2M_DMA_Cmd(UDMA0_M2M_CH0, ENABLE);
+        }
+    }
+    else if (UDMA_GetITStatus(UDMA0_CH0_M2M_IRQ, UDMA_ERR_IRQ) == SET) {
+        UDMA_ClearITStatus(UDMA0_CH0_M2M_IRQ, UDMA_ERR_IRQ);
+    }
+}
+
+void memory_init()
+{
+    int i = 0;
+    for (; i < 256; i++) {
+        REG8(CAL_ADDR(SRC_DATA_ACC_ADDR_BASE + i)) = src_buffer_8[i];  
+    }
+}
+
+void main(void)
+{
+    #ifdef MISC_HAS_UDMA0_HAS_CLK
+    udma0_clk_en(ENABLE);
+    #endif
+    #ifdef MISC_HAS_UDMA0_RST
+    udma0_set_rst(DISABLE);
+    udma0_set_rst(ENABLE);
+    #endif
+#ifdef CFG_SIMULATION
+    #ifdef MISC_HAS_UDMA0_CLK_DIV
+    udma0_clk_div(10);
+    #endif
+#endif
+    #if defined(__DCACHE_PRESENT) && __DCACHE_PRESENT == 1
+    MFlushInvalDCache();
+    #endif
+    #if defined(__DCACHE_PRESENT) && __DCACHE_PRESENT == 1
+    DisableDCache();
+    #endif
+    int32_t retVal = 0;
+    memory_init();
+
+    UDMA_StructInit(&UDMA_InitStruct);
+    UDMA_InitStruct.UDMA_DstBaseAddr = (uint32_t)(CAL_ADDR(DES_DATA_ACC_ADDR_BASE));
+    UDMA_InitStruct.UDMA_SrcBaseAddr = (uint32_t)(CAL_ADDR(SRC_DATA_ACC_ADDR_BASE));
+    UDMA_InitStruct.UDMA_DstBaseAddr_h = 0x0;
+    UDMA_InitStruct.UDMA_SrcBaseAddr_h = 0x0;
+
+    UDMA_InitStruct.UDMA_BufferSize = 1;
+    UDMA_InitStruct.UDMA_DstInc = UDMA_MDNA_DISABLE;
+    UDMA_InitStruct.UDMA_SrcInc = UDMA_MSNA_DISABLE;
+    UDMA_InitStruct.UDMA_SrcWidth = UDMA_MSWIDTH_8BIT;
+    UDMA_InitStruct.UDMA_DstWidth = UDMA_MDWIDTH_8BIT;
+    UDMA_InitStruct.UDMA_Mode = UDMA_MODE_NORMAL;
+    UDMA_InitStruct.UDMA_Priority = UDMA_PRIORITY_LOW;
+
+    /* Global interrupt enable*/
+    __enable_irq();
+    /*register interrupt UDMA_IRQn */
+    retVal = ECLIC_Register_IRQ(UDMA0_IRQn, ECLIC_NON_VECTOR_INTERRUPT,
+                                                  ECLIC_LEVEL_TRIGGER, 1, 0,
+                                                  UDMA0_IRQHandler);
+    if (retVal == -1) {
+        simulation_fail();
+        while(1);
+    }
+    UDMA_Init(UDMA0_M2M_CH0, &UDMA_InitStruct);
+    UDMA_ITConfig(UDMA0_CH0_M2M_IRQ, UDMA_FTRANS_IRQ, ENABLE);
+    M2M_DMA_Cmd(UDMA0_M2M_CH0, ENABLE);
+    
+    while (!soft_stop_flg) {};
+    if (state) {
+        simulation_pass();
+    } else {
+        simulation_fail();
+    }
+    while(1);
+}

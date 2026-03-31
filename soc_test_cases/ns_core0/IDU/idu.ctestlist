@@ -1,0 +1,9 @@
+IDU_idu_intercore
+IDU_idu_broadcast
+IDU_idu_indicator_mask
+IDU_idu_semaphore
+IDU_idu_nmi_lock
+IDU_idu_event
+IDU_idu_event_lgpio
+IDU_idu_irq_as_event
+IDU_idu_smp_boot

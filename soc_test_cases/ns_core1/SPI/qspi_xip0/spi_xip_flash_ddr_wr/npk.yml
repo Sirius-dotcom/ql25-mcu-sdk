@@ -1,0 +1,62 @@
+## Package Base Information
+name: app-nsdk_ns_core1_SPI_qspi_xip0_spi_xip_flash_ddr_wr
+owner: nuclei
+version:
+description: NS_CORE1 SPI_qspi_xip0_spi_xip_flash_ddr_wr Test Case
+type: app
+keywords:
+  - app
+  - risc-v
+license: Apache License 2.0
+homepage: https://nucleisys.com/
+
+## Package Dependency
+dependencies:
+  - name: sdk-nuclei_sdk
+    owner: nuclei
+    version:
+  - name: ssp-nsdk_ns_core1
+    version:
+
+configuration:
+  download_mode:
+    default_value: ilm
+    type: choice
+    global: true
+    description: Download/Run Mode
+    choices:
+      - name: sram
+        description: sram download mode
+      - name: sramxip
+        description: sramxip download mode
+      - name: ilm
+        description: ilm download mode
+
+## Set Configuration for other packages
+setconfig:
+
+## Source Code Management
+codemanage:
+  copyfiles:
+    - path: ["*.c", "*.h", "*.S"]
+  incdirs:
+    - path: ["./"]
+  libdirs:
+  ldlibs:
+    - libs:
+
+## Build Configuration
+buildconfig:
+  - type: gcc
+    common_flags: # flags need to be combined together across all packages
+      - flags: ${app_commonflags}
+    ldflags:
+    cflags:
+    asmflags:
+    cxxflags:
+    prebuild_steps: # could be override by app/bsp type
+      command:
+      description:
+    postbuild_steps: # could be override by app/bsp type
+      command:
+      description:

@@ -1,0 +1,134 @@
+{
+    "checks": {
+        "PASS": [
+            "test pass",
+            "todo check"
+        ],
+        "FAIL": [
+            "MCAUSE",
+            "test fail"
+        ]
+    },
+    "appdirs": [
+        "application",
+        "soc_test_cases"
+    ],
+    "appconfig": {
+        "application/baremetal/helloworld": {
+            "build_config": {},
+            "checks": {
+                "PASS": [
+                    "19: Hello World From Nuclei RISC-V Processor!"
+                ]
+            }
+        },
+        "application/baremetal/demo_dsp": {
+            "build_config": {},
+            "checks": {
+                "PASS": [
+                    "all test are passed"
+                ],
+                "FAIL": [
+                    "test error apprears"
+                ]
+            }
+        },
+        "application/baremetal/demo_timer": {
+            "build_config": {},
+            "checks": {
+                "PASS": [
+                    "MTimer msip and mtip interrupt test finish and pass"
+                ]
+            }
+        },
+        "application/baremetal/demo_eclic": {
+            "build_config": {},
+            "checks": {
+                "PASS": [
+                    "software interrupt hit 10 times"
+                ]
+            }
+        },
+        "application/baremetal/demo_nice": {
+            "build_config": {},
+            "checks": {
+                "PASS": [
+                    "PASS"
+                ],
+                "FAIL": [
+                    "FAIL",
+                    "MEPC:"
+                ]
+            }
+        },
+        "application/baremetal/benchmark/coremark": {
+            "build_config": {},
+            "checks": {
+                "PASS": [
+                    "Iterations*1000000/total_ticks"
+                ]
+            }
+        },
+        "application/baremetal/benchmark/dhrystone": {
+            "build_config": {},
+            "checks": {
+                "PASS": [
+                    "MWIPS/MHz"
+                ]
+            }
+        },
+        "application/baremetal/benchmark/whetstone": {
+            "build_config": {},
+            "checks": {
+                "PASS": [
+                    "1000000/(User_Cycle/Number_Of_Runs)"
+                ]
+            }
+        },
+        "application/ucosii/demo": {
+            "build_config": {},
+            "checks": {
+                "PASS": [
+                    "task3 is running... 10"
+                ]
+            }
+        },
+        "application/freertos/demo": {
+            "build_config": {},
+            "checks": {
+                "PASS": [
+                    "timers callback 11"
+                ]
+            }
+        },
+        "application/rtthread/demo": {
+            "build_config": {},
+            "checks": {
+                "PASS": [
+                    "msh >"
+                ]
+            }
+        },
+        "application/rtthread/msh": {
+            "build_config": {},
+            "checks": {
+                "PASS": [
+                    "Main thread count: 6"
+                ]
+            }
+        },
+        "soc_test_cases/ns_core1/SPI/qspi0/spi_flash": {
+            "build_configs": {
+                "core1_n300-flashxip": {
+                    "DOWNLOAD": "ilm",
+                    "CORE": "core1_n300"
+                },
+                "core1_n300-flash": {
+                    "DOWNLOAD": "ilm",
+                    "CORE": "core1_n300"
+                }
+            },
+            "checks": {}
+        }
+    }
+}

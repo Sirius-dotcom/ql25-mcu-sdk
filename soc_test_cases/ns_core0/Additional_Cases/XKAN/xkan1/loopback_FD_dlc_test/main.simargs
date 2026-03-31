@@ -1,0 +1,4 @@
+
++XKAN1_TRANSCEIVER = xkan1_transceiver_connect
+
++TEST_TO_VALUE=3000000000

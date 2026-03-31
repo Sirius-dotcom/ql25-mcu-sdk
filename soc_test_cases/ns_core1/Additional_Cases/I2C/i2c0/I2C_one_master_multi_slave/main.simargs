@@ -1,0 +1,5 @@
+
++TEST_LOOPBACK=i2c0_i2c1_connect
++i2c0_eeprom_connect
+
++fast_sim

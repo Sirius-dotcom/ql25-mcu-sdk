@@ -1,0 +1,16 @@
+
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_xip_flash_wr_cache/main.c
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_xip_flash_wr_cache/README.TXT
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_xip_flash_wr_cache/main.simargs
+
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_xip_psram/main.c
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_xip_psram/README.TXT
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_xip_psram/main.simargs
+
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_xip_flash_wr/main.c
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_xip_flash_wr/README.TXT
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_xip_flash_wr/main.simargs
+
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_xip_flash_ddr_wr/main.c
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_xip_flash_ddr_wr/README.TXT
+$PROJ_SRC_ROOT/soc_verif/spi/ctests/spi_xip_flash_ddr_wr/main.simargs
