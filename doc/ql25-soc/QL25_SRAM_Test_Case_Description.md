@@ -205,7 +205,54 @@ make SOC=ns_core0 CORE=core0_n300 DOWNLOAD=ilm BOARD=fpga_eval \
      PROGRAM=soc_test_cases/ns_core0/SRAM/sram2/Bkup_ram_wr_test clean all
 ```
 
-### 7.2 完整测试矩阵
+### 7.2 按 EDA 标准格式运行
+
+以下命令采用 Quick-start 中推荐的 EDA 运行格式：
+
+```bash
+ctest_gun -t <CTEST_NAME> --bm=ilm
+make run TESTNAME=<CTEST_NAME>_ilm
+```
+
+#### Core 0（从核）SRAM 测试
+
+```bash
+ctest_gun -t SRAM_sram0_Bkup_ram_wr_test --bm=ilm
+make run TESTNAME=SRAM_sram0_Bkup_ram_wr_test_ilm
+
+ctest_gun -t SRAM_sram1_Bkup_ram_wr_test --bm=ilm
+make run TESTNAME=SRAM_sram1_Bkup_ram_wr_test_ilm
+
+ctest_gun -t SRAM_sram2_Bkup_ram_wr_test --bm=ilm
+make run TESTNAME=SRAM_sram2_Bkup_ram_wr_test_ilm
+
+ctest_gun -t SRAM_sram3_Bkup_ram_wr_test --bm=ilm
+make run TESTNAME=SRAM_sram3_Bkup_ram_wr_test_ilm
+```
+
+#### Core 1（主核）SRAM 测试
+
+```bash
+ctest_gun -t SRAM_sram0_Bkup_ram_wr_test --bm=ilm
+make run TESTNAME=SRAM_sram0_Bkup_ram_wr_test_ilm
+
+ctest_gun -t SRAM_sram1_Bkup_ram_wr_test --bm=ilm
+make run TESTNAME=SRAM_sram1_Bkup_ram_wr_test_ilm
+
+ctest_gun -t SRAM_sram2_Bkup_ram_wr_test --bm=ilm
+make run TESTNAME=SRAM_sram2_Bkup_ram_wr_test_ilm
+
+ctest_gun -t SRAM_sram3_Bkup_ram_wr_test --bm=ilm
+make run TESTNAME=SRAM_sram3_Bkup_ram_wr_test_ilm
+```
+
+说明：
+
+- SRAM 用例是单核测试，不需要 `+TEST_BOOT_TYPE=parallel_boot`
+- `CTEST_NAME` 对应 `soc_test_cases/ns_core0/SRAM/sram.ctestlist` 和 `soc_test_cases/ns_core1/SRAM/sram.ctestlist` 中的目标名
+- `--bm=ilm` 对应当前文档描述的 ILM 仿真方式
+
+### 7.3 完整测试矩阵
 
 建议按以下顺序执行，确保两核对所有 SRAM bank 的访问均正常：
 

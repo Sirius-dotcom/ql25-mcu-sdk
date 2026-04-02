@@ -402,13 +402,59 @@ if (hart_id.b.core_id == 0 && hart_id.b.processor_id == 0) {
 ⑨ event_lgpio     → 验证 LGPIO+RTC 触发事件唤醒
 ```
 
-### 7.2 通过（PASS）
+### 7.2 按 EDA 标准格式运行
+
+以下命令采用 Quick-start 中推荐的 EDA 运行格式：
+
+```bash
+ctest_gun -t <CTEST_NAME> --bm=ilm
+make run TESTNAME=<CTEST_NAME>_ilm
+```
+
+IDU 所有用例都属于双核 `parallel_boot` 场景，仿真时会同时加载 core0/core1 的同名 IDU 用例镜像。可直接按下面的 ctest 名称运行：
+
+```bash
+ctest_gun -t IDU_idu_smp_boot --bm=ilm
+make run TESTNAME=IDU_idu_smp_boot_ilm
+
+ctest_gun -t IDU_idu_event --bm=ilm
+make run TESTNAME=IDU_idu_event_ilm
+
+ctest_gun -t IDU_idu_intercore --bm=ilm
+make run TESTNAME=IDU_idu_intercore_ilm
+
+ctest_gun -t IDU_idu_semaphore --bm=ilm
+make run TESTNAME=IDU_idu_semaphore_ilm
+
+ctest_gun -t IDU_idu_nmi_lock --bm=ilm
+make run TESTNAME=IDU_idu_nmi_lock_ilm
+
+ctest_gun -t IDU_idu_broadcast --bm=ilm
+make run TESTNAME=IDU_idu_broadcast_ilm
+
+ctest_gun -t IDU_idu_indicator_mask --bm=ilm
+make run TESTNAME=IDU_idu_indicator_mask_ilm
+
+ctest_gun -t IDU_idu_irq_as_event --bm=ilm
+make run TESTNAME=IDU_idu_irq_as_event_ilm
+
+ctest_gun -t IDU_idu_event_lgpio --bm=ilm
+make run TESTNAME=IDU_idu_event_lgpio_ilm
+```
+
+说明：
+
+- 这些目标名来自 `soc_test_cases/ns_core0/IDU/idu.ctestlist` 与 `soc_test_cases/ns_core1/IDU/idu.ctestlist`
+- 每个 IDU 用例在 core0 和 core1 目录下都有同名测试目录，`main.simargs` 均包含 `+TEST_BOOT_TYPE=parallel_boot`
+- 因此 IDU 用例运行时不是单核 case，而是双核并行启动 case
+
+### 7.3 通过（PASS）
 
 - 两核均执行到 `simulation_pass()`
 - 仿真日志无 `ERR` / `fail` 打印
 - `intercore` 测试中 ISR 的 `count` 达到预期值
 
-### 7.3 失败（FAIL）
+### 7.4 失败（FAIL）
 
 | 现象 | 可能原因 |
 |------|---------|
@@ -419,7 +465,7 @@ if (hart_id.b.core_id == 0 && hart_id.b.processor_id == 0) {
 | ISR 未进入 | `INTER_CORE_IRQn` 未正确注册到 ECLIC / 全局中断未使能 |
 | `count` 未达到预期 | ICI 发送成功但 ISR 中 clear 逻辑有误 / cluster_num 读取错误 |
 
-### 7.4 调试建议
+### 7.5 调试建议
 
 1. **先跑 `smp_boot`**：如果空壳都失败，说明双核并行启动机制本身有问题
 2. **再跑 `event`**：如果 WFE 唤醒失败，检查 `IDU_SetEventSel()` 的参数和 CSR 0x812 写入
