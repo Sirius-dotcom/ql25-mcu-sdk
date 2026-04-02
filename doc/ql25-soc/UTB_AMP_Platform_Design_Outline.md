@@ -19,7 +19,7 @@
 - 核间中断使用 IDU（`INTER_CORE_IRQn = 19`，IDU 基址 `0x10010000`）。
 - 两核 ECLIC 均支持 `128` 个外部中断，`CFG_CLICINTCTLBITS=3`。
 - CPU 型号为 xunlian v5.5.0（N300 系列），rv32imafc，单精度 FPU，双发射。
-- 主核 I-Cache `16 KB`（ICACHE_ADDR_WIDTH=14）；从核 I-Cache `32 KB`（ICACHE_ADDR_WIDTH=15）。两核均无 D-Cache。
+- 主核 I-Cache `32 KB`（ICACHE_ADDR_WIDTH=14）；从核 I-Cache `16 KB`（ICACHE_ADDR_WIDTH=15）。两核均无 D-Cache。
 - 验收性能目标暂定为：从核转发吞吐不低于 `25 Mbps`。
 - 验收资源目标暂定为：`31` 个节点场景下内存占用不超过 `192 KB`。
 - 验收质量目标暂定为：目标工况下不允许丢包。
@@ -1610,7 +1610,7 @@ vPortDefineHeapRegions(xHeapRegions); /* 必须在首次 pvPortMalloc 前调用 
 - **主核**：ILM `64 KB`@`0x08000000`（运行代码，Flash XIP 模式下不使用）+ DLM `32 KB`@`0x08010000`（栈、快速数据）+ SRAM2 `64 KB`（heap、大块缓冲）
 - **从核**：ILM `64 KB`@`0x09000000`（热点代码预算 `48 KB`）+ DLM `32 KB`@`0x09010000`（栈、协议状态）+ SRAM0~1 `256 KB`（重组池、收发缓冲）
 - **共享**：SRAM3 `64 KB`@`0x30060000`
-- 从核 I-Cache `32 KB`、主核 I-Cache `16 KB` 不计入上述 SRAM 预算。
+- 从核 I-Cache `16 KB`、主核 I-Cache `32 KB` 不计入上述 SRAM 预算。
 - 运行代码默认以 Flash XIP（`0x20000000`）为主，仅把从核热点代码/热点数据搬移到从核 ILM。
 
 ##### 7.6.1 192 KB 重组缓存池推导

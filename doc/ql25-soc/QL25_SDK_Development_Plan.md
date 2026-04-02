@@ -21,9 +21,9 @@
 
 本计划默认遵循以下前提：
 
-- BootROM 只启动主核（Core 0）。
-- 主核完成早期初始化后释放从核（Core 1）。
-- 从核 ILM 64 KB（硬件容量），**热点代码区控制在 48 KB 以内**，留余量给未来迭代。
+- BootROM 只启动主核（Core 1）。
+- 主核完成早期初始化后释放从核（Core 0）。
+- 从核 ILM 48 KB（硬件容量，64k地址为未来扩展，实际ram 只有48K），**热点代码区控制在 48 KB 以内**，留余量给未来迭代。
 - 运行形态以 `Flash XIP + 从核 ILM 热搬移` 为目标形态。
 - `DOWNLOAD=ilm` 仅作为 FPGA bring-up 和调试模式，**不作为最终运行模式**。
 - SDK 已提供完整外设驱动（USART、QSPI、I2C、LGPIO、UDMA 等），**平台层复用 SDK 已有驱动，不从零开发**。
@@ -39,8 +39,8 @@
 ### 2.1 架构原则
 
 - 采用双核 AMP，不走 SMP 共享调度模型。
-- 主核（ns_core0）负责启动总控、管理面、配置 authority、恢复裁决。
-- 从核（ns_core1）负责转发面、快路径、热点状态与热点缓存。
+- 主核（ns_core1）负责启动总控、管理面、配置 authority、恢复裁决。
+- 从核（ns_core0）负责转发面、快路径、热点状态与热点缓存。
 - 共享对象必须使用明确 owner 模型，禁止双方同时写。
 - 上层业务通过平台接口访问底层能力，禁止跨层直连内部实现。
 
@@ -65,8 +65,8 @@
 
 | SDK 路径 | 用途 |
 |---|---|
-| `SoC/ns_core0/` | 主核 SoC 移植、启动、链接脚本、外设驱动 |
-| `SoC/ns_core1/` | 从核 SoC 移植、启动、链接脚本、外设驱动 |
+| `SoC/ns_core0/` | 从核 SoC 移植、启动、链接脚本、外设驱动 |
+| `SoC/ns_core1/` | 主核 SoC 移植、启动、链接脚本、外设驱动 |
 | `SoC/ns_core0/Common/Source/Drivers/` | 已有外设驱动（USART、QSPI、I2C、LGPIO、UDMA 等）|
 | `application/baremetal/smphello/` | 双核 hart 路由与栈初始化参考 |
 | `application/baremetal/demo_cidu/` | 核间中断（IDU）实现参考 |
@@ -105,7 +105,7 @@ ql25-mcu-sdk/
 │  ════════════════════════════════════════════════════
 │
 ├── SoC/
-│   ├── ns_core0/                              # 主核（Core 0）SoC 支持
+│   ├── ns_core0/                              # 从核（Core 0）SoC 支持
 │   │   ├── build.mk                           # CORE=core0_n300f, BOARD=fpga_eval
 │   │   ├── ns_core0_feature.mk                # CPU 特性导出（xunlian v5.5.0, rv32imafc）
 │   │   ├── Common/
@@ -144,7 +144,7 @@ ql25-mcu-sdk/
 │   │   │       │   ├── ns_pa2m_udma.c
 │   │   │       │   └── ns_misc.c
 │   │   │       ├── GCC/
-│   │   │       │   ├── startup_ns_core0.S     # 主核启动（hart 路由 + 栈准备）
+│   │   │       │   ├── startup_ns_core0.S     # 从核启动（hart 路由 + 栈准备）
 │   │   │       │   ├── intexc_ns_core0.S      # M-mode 异常/中断入口
 │   │   │       │   ├── intexc_ns_core0_s.S    # S-mode（如有）
 │   │   │       │   └── system_ns.c            # 时钟/ECLIC 早期初始化
@@ -160,15 +160,15 @@ ql25-mcu-sdk/
 │   │           ├── gcc_ns_core0_flash.ld      # Flash 模式
 │   │           └── gcc_ns_core0_flashxip0.ld  # Flash XIP 目标模式
 │   │
-│   └── ns_core1/                              # 从核（Core 1）— 结构与 ns_core0 对称
+│   └── ns_core1/                              # 主核（Core 1）— 结构与 ns_core0 对称
 │       ├── build.mk                           # CORE=core1_n300f
-│       ├── ns_core1_feature.mk
+│       ├── ns_core0_feature.mk
 │       ├── Common/...                         # 同 ns_core0 结构
 │       └── Board/fpga_eval/
 │           └── Source/GCC/
-│               ├── gcc_ns_core1_ilm.ld
-│               ├── gcc_ns_core1_flash.ld
-│               └── gcc_ns_core1_flashxip0.ld
+│               ├── gcc_ns_core0_ilm.ld
+│               ├── gcc_ns_core0_flash.ld
+│               └── gcc_ns_core0_flashxip0.ld
 │
 │  ════════════════════════════════════════════════════
 │  【SDK 已有】OS / NMSIS / Components / Middleware
@@ -259,8 +259,8 @@ ql25-mcu-sdk/
     │   └── ql25_amp_hello/                    # Phase 2 验证：双核各自打印 hartid + bring-up stage
     └── freertos/
         └── ql25_amp_demo/                     # Phase 5 联调工程（主核管理面 + 从核转发面）
-            ├── master_main.c                  # 主核入口（SOC=ns_core0 构建）
-            ├── slave_main.c                   # 从核入口（SOC=ns_core1 构建）
+            ├── master_main.c                  # 主核入口（SOC=ns_core1 构建）
+            ├── slave_main.c                   # 从核入口（SOC=ns_core0 构建）
             ├── FreeRTOSConfig_master.h
             ├── FreeRTOSConfig_slave.h
             └── Makefile
@@ -270,8 +270,8 @@ ql25-mcu-sdk/
 
 | 设计文档层次 | 目录位置 | 说明 |
 |---|---|---|
-| L1 启动与引导层 | `SoC/ns_core0/.../startup_ns_core0.S` `system_ns.c` `platform/boot/` | SDK 已有启动入口 + 新建 AMP bring-up 编排 |
-| L2 BSP/HAL/Driver | `SoC/ns_core0/Board/fpga_eval/` + `SoC/ns_core0/Common/Source/Drivers/` + `platform/hal/` | SDK 已有驱动 + 新建 owner 封装层 |
+| L1 启动与引导层 | `SoC/ns_core1/.../startup_ns_core1.S`（主核）`SoC/ns_core0/.../startup_ns_core0.S`（从核）`system_ns.c` `platform/boot/` | SDK 已有启动入口 + 新建 AMP bring-up 编排 |
+| L2 BSP/HAL/Driver | `SoC/ns_core0/` + `SoC/ns_core1/` + `platform/hal/` | SDK 已有驱动 + 新建 owner 封装层 |
 | L3 OSAL | `platform/osal/` | FreeRTOS 隔离，与 HAL 不同维度 |
 | L4 共享基础服务 | `platform/ipc/` `platform/storage/` `platform/sysf/` | 不与业务混写；IPC ring 单 producer |
 | L5 平台服务接口 | `platform/api/include/` | 对上统一契约，屏蔽底层实现细节 |
@@ -288,8 +288,8 @@ ql25-mcu-sdk/
 |---|---|
 | Hart ID | 主核 hartid 通过 `HartID_Info_Typedef` 结构区分 `core_id` 位；`BOOT_HARTID=0` |
 | CPU 型号 | **xunlian v5.5.0（N300 系列），rv32imafc，单精度 FPU，双发射**；无 D-Cache；PMP 16 项；ECLIC 128 个中断，`CFG_CLICINTCTLBITS=3` |
-| 主核本地存储 | **Core 0 ILM 64KB** @ `0x08000000`；**Core 0 DLM 32KB** @ `0x08010000`；I-Cache 16KB |
-| 从核本地存储 | **Core 1 ILM 64KB** @ `0x09000000`；**Core 1 DLM 32KB** @ `0x09010000`；I-Cache 32KB |
+| 从核本地存储 | **Core 0 ILM 64KB** @ `0x08000000`；**Core 0 DLM 32KB** @ `0x08010000`；I-Cache 16KB |
+| 主核本地存储 | **Core 1 ILM 64KB** @ `0x09000000`；**Core 1 DLM 32KB** @ `0x09010000`；I-Cache 32KB |（只是预留地址空间，没有实际ILM，DLM）
 | 外部 SRAM | **4 banks 共 384KB**：SRAM0 128KB @ `0x30000000`，SRAM1 128KB @ `0x30020000`，SRAM2 64KB @ `0x30040000`，SRAM3 64KB @ `0x30060000` |
 | 共享内存 | 从外部 SRAM 中划分（建议 SRAM2 64KB 或 SRAM3 64KB 作为共享区）；cacheable 属性需确认 |
 | Flash | **XIP 基址 `0x20000000`**，256MB 地址空间；总大小待确认（设计目标 2MB，1MB 用于升级回滚）|
@@ -301,7 +301,7 @@ ql25-mcu-sdk/
 
 ### SDK 确认的核间对比
 
-| 项目 | Core 0（主核，ns_core0）| Core 1（从核，ns_core1）|
+| 项目 | Core 0（从核，ns_core0）| Core 1（主核，ns_core1）|
 |---|---|---|
 | CPU | xunlian v5.5.0, rv32imafc | xunlian v5.5.0, rv32imafc |
 | FPU | 单精度 | 单精度 |
@@ -315,7 +315,7 @@ ql25-mcu-sdk/
 | Slave Port | Y（外部可访问 ILM/DLM）| Y（外部可访问 ILM/DLM）|
 | 外设访问 | 共享外设总线 `0x10000000` | 共享外设总线 `0x10000000` |
 
-> **与设计文档差异说明：** 设计文档原始假设"主核无 ILM/DLM"、"从核 ILM 48KB 无 DLM"、"从核 I-Cache 16KB"。SDK 确认两核均有 64KB ILM + 32KB DLM，且 Core 1 I-Cache 为 32KB（大于 Core 0 的 16KB）。这些更新对 AMP 架构有利：主核可利用自身 ILM/DLM 减少对外部 SRAM 的依赖。
+> **与设计文档差异说明：** 设计文档原始假设"主核无 ILM/DLM"、"从核 ILM 48KB 无 DLM"、"从核 I-Cache 16KB"。SDK 确认两核均有 64KB ILM + 32KB DLM，且 Core 1 I-Cache 为 32KB（大于 Core 0 的 16KB）。实际只是预留地址空间，主核没有ILM，DLM，只有从核core0 有48K ILM。
 
 **Phase 0 交付物：**
 - `doc/ql25-soc/QL25_Hardware_Facts.md`（基于 SDK 提取，补充待确认项）
@@ -396,7 +396,7 @@ STACKSZ ?= 2K
 LINKER_SCRIPT ?= $(NUCLEI_SDK_SOC_BOARD)/Source/GCC/gcc_ns_core0_$(DOWNLOAD).ld
 ```
 
-> **注意**：SDK 的双核模型是**分离构建**（主核用 `SOC=ns_core0`，从核用 `SOC=ns_core1`），不是 SMP=2 单构建。AMP 工程需要分别编译两个 ELF。
+> **注意**：SDK 的双核模型是**分离构建**（主核用 `SOC=ns_core1`，从核用 `SOC=ns_core0`），不是 SMP=2 单构建。AMP 工程需要分别编译两个 ELF。
 
 ### Step 1.2 — CPU 特性确认
 
@@ -446,11 +446,11 @@ MEMORY {
 **AMP 扩展需求**：从核 Flash XIP 链接脚本需增加 `.slave_ilm_text` 段，将热路径代码 LMA 放在 Flash、VMA 映射到从核 ILM：
 
 ```ld
-/* gcc_ns_core1_flashxip0.ld 扩展（需新增段）*/
+/* gcc_ns_core0_flashxip0.ld 扩展（需新增段）*/
 MEMORY {
   flash (rxa!w) : ORIGIN = 0x20000000, LENGTH = 256M
-  ilm   (rwx)  : ORIGIN = 0x09000000, LENGTH = 64K   /* Core 1 ILM */
-  ram   (wxa!r) : ORIGIN = 0x09010000, LENGTH = 32K   /* Core 1 DLM */
+  ilm   (rwx)  : ORIGIN = 0x08000000, LENGTH = 64K   /* Core 0 ILM（从核）*/
+  ram   (wxa!r) : ORIGIN = 0x08010000, LENGTH = 32K   /* Core 0 DLM（从核）*/
 }
 
 SECTIONS {
@@ -468,12 +468,12 @@ SECTIONS {
 
 ### Step 1.4 — 启动文件职责边界
 
-SDK 已提供 `startup_ns_core0.S`，负责：hart 路由、栈准备、跳转 `_init` → `SystemInit` → `main`。
+SDK 已提供 `startup_ns_core1.S`（主核）和 `startup_ns_core0.S`（从核），负责：hart 路由、栈准备、跳转 `_init` → `SystemInit` → `main`。
 
-**AMP 扩展**：从核的 `startup_ns_core1.S` 需要修改，增加等待 boot flag 的逻辑（或在 `system_ns.c` 中增加）：
+**AMP 扩展**：从核的 `startup_ns_core0.S` 需要修改，增加等待 boot flag 的逻辑（或在 `system_ns.c` 中增加）：
 
 ```c
-/* SoC/ns_core1/Common/Source/system_ns.c 扩展 */
+/* SoC/ns_core0/Common/Source/system_ns.c 扩展 */
 void SystemInit(void) {
     /* 从核：等待主核释放 */
     utb_boot_slave_wait_release();
@@ -484,10 +484,10 @@ void SystemInit(void) {
 
 ### 完成判据
 
-- 主核 `SOC=ns_core0 DOWNLOAD=ilm` 模式下 hello world 正常运行，USART 输出。
-- 从核 `SOC=ns_core1 DOWNLOAD=ilm` 模式下单核可独立运行。
+- 主核 `SOC=ns_core1 DOWNLOAD=ilm` 模式下 hello world 正常运行，USART 输出。
+- 从核 `SOC=ns_core0 DOWNLOAD=ilm` 模式下单核可独立运行。
 - 主核 Timer/ECLIC 中断可响应。
-- OpenOCD `openocd_ns_core0.cfg` 可连接主核并单步调试。
+- OpenOCD `openocd_ns_core1.cfg` 可连接主核并单步调试。
 
 ---
 
@@ -500,7 +500,7 @@ void SystemInit(void) {
 ```
 1. 主核早期初始化（时钟、栈、异常向量）— SDK system_ns.c 已有
 2. 共享区与 IPC 基础区建立（外部 SRAM 初始化）
-3. 从核镜像定位与 ILM 热段搬运（从 Flash 搬到 Core 1 ILM @ 0x09000000）
+3. 从核镜像定位与 ILM 热段搬运（从 Flash 搬到 Core 0 ILM @ 0x08000000）
 4. UTB_CACHE_CLEAN_INV(共享区) + UTB_DSB()
 5. 写入从核 boot metadata 与 boot flag + UTB_DSB()
 6. 写 SoC 复位控制寄存器，release secondary + UTB_DSB()
@@ -607,7 +607,7 @@ void utb_ipc_idu_init(void) {
 新增 `application/baremetal/ql25_amp_hello/`，验证内容：
 
 - 主核打印 hartid + 各 bring-up stage（通过 USART0 输出）
-- 主核通过外部访问接口写入从核 ILM（Core 1 ILM @ `0x09000000`，Slave Port = Y）
+- 主核通过外部访问接口写入从核 ILM（Core 0 ILM @ `0x08000000`，Slave Port = Y）
 - 主核 release 从核
 - 从核验证 boot flag 后打印 hartid
 - bring-up 失败时输出明确错误码，区分 `fatal` 与 `forwarding-disabled`
@@ -750,18 +750,18 @@ AMP 工程需要分别用两个 SOC 构建：
 
 ```bash
 # 主核 ELF
-make SOC=ns_core0 BOARD=fpga_eval CORE=core0_n300f DOWNLOAD=flashxip0 \
+make SOC=ns_core1 BOARD=fpga_eval CORE=core1_n300f DOWNLOAD=flashxip0 \
      APP=application/freertos/ql25_amp_demo TARGET=master
 
 # 从核 ELF
-make SOC=ns_core1 BOARD=fpga_eval CORE=core1_n300f DOWNLOAD=flashxip0 \
+make SOC=ns_core0 BOARD=fpga_eval CORE=core0_n300f DOWNLOAD=flashxip0 \
      APP=application/freertos/ql25_amp_demo TARGET=slave
 ```
 
 ### 12.2 从核转发面任务结构
 
 ```c
-/* application/freertos/ql25_amp_demo/slave_main.c（SOC=ns_core1 构建）*/
+/* application/freertos/ql25_amp_demo/slave_main.c（SOC=ns_core0 构建）*/
 
 void slave_main(void) {
     mac_rx_irq_enable();
@@ -803,7 +803,7 @@ static void task_rx_fast(void *arg) {
 ### 12.4 主核管理面任务结构
 
 ```c
-/* application/freertos/ql25_amp_demo/master_main.c（SOC=ns_core0 构建）*/
+/* application/freertos/ql25_amp_demo/master_main.c（SOC=ns_core1 构建）*/
 
 int main(void) {
     SystemInit();   /* 内含 platform/boot/ 完整 bring-up 编排 */
@@ -895,7 +895,7 @@ static void task_usart_mgmt(void *arg) {
 | 里程碑 | 完成标准 |
 |---|---|
 | M0 | 硬件事实冻结完成（SDK 已确认大部分，补齐剩余待确认项）|
-| M1 | 主核单核 hello（`SOC=ns_core0 DOWNLOAD=ilm`），USART、ECLIC 正常 |
+| M1 | 主核单核 hello（`SOC=ns_core1 DOWNLOAD=ilm`），USART、ECLIC 正常 |
 | M2 | AMP 9 步 bring-up 跑通，主核可释放从核，从核 ready 稳定上报 |
 | M3 | 主从核 FreeRTOS 独立运行，IPC ping/pong 1 万次无错 |
 | M4 | HAL 封装层落地（基于 SDK 驱动），owner 模型生效 |
@@ -920,29 +920,29 @@ static void task_usart_mgmt(void *arg) {
 ## 17. 构建命令
 
 ```bash
-# === 主核构建（SOC=ns_core0）===
+# === 主核构建（SOC=ns_core1）===
 
 # FPGA bring-up 模式（ILM，早期调试）
-make SOC=ns_core0 BOARD=fpga_eval CORE=core0_n300f DOWNLOAD=ilm
-
-# 目标运行模式（Flash XIP）
-make SOC=ns_core0 BOARD=fpga_eval CORE=core0_n300f DOWNLOAD=flashxip0
-
-# === 从核构建（SOC=ns_core1）===
-
-# FPGA bring-up 模式
 make SOC=ns_core1 BOARD=fpga_eval CORE=core1_n300f DOWNLOAD=ilm
 
-# 目标运行模式
+# 目标运行模式（Flash XIP）
 make SOC=ns_core1 BOARD=fpga_eval CORE=core1_n300f DOWNLOAD=flashxip0
+
+# === 从核构建（SOC=ns_core0）===
+
+# FPGA bring-up 模式
+make SOC=ns_core0 BOARD=fpga_eval CORE=core0_n300f DOWNLOAD=ilm
+
+# 目标运行模式
+make SOC=ns_core0 BOARD=fpga_eval CORE=core0_n300f DOWNLOAD=flashxip0
 
 # === 下载与调试 ===
 
 # 主核下载
-make SOC=ns_core0 BOARD=fpga_eval upload
+make SOC=ns_core1 BOARD=fpga_eval upload
 
 # 从核下载
-make SOC=ns_core1 BOARD=fpga_eval upload
+make SOC=ns_core0 BOARD=fpga_eval upload
 
 # 双核调试（使用 _all 配置）
 openocd -f SoC/ns_core0/Board/fpga_eval/openocd_ns_core0_all.cfg
@@ -955,17 +955,17 @@ openocd -f SoC/ns_core0/Board/fpga_eval/openocd_ns_core0_all.cfg
 | 路径 | 用途 |
 |---|---|
 | `doc/ql25-soc/UTB_AMP_Platform_Design_Outline.md` | **设计基线（权威文档）** |
-| `SoC/ns_core0/` | 主核 SoC 完整支持（SDK 已有）|
-| `SoC/ns_core1/` | 从核 SoC 完整支持（SDK 已有）|
+| `SoC/ns_core0/` | 从核（Core 0）SoC 完整支持（SDK 已有）|
+| `SoC/ns_core1/` | 主核（Core 1）SoC 完整支持（SDK 已有）|
 | `SoC/ns_core0/Common/Include/ns.h` | 外设基址、IRQn 枚举（核间中断 IRQ=19）|
-| `SoC/ns_core0/Common/Include/ns_core0_feature.h` | Core 0 CPU 特性（ILM/DLM 地址、I-Cache 等）|
-| `SoC/ns_core1/Common/Include/ns_core1_feature.h` | Core 1 CPU 特性 |
+| `SoC/ns_core0/Common/Include/ns_core0_feature.h` | Core 0（从核）CPU 特性（ILM/DLM 地址、I-Cache 等）|
+| `SoC/ns_core1/Common/Include/ns_core1_feature.h` | Core 1（主核）CPU 特性 |
 | `SoC/ns_core0/Common/Source/Drivers/` | SDK 已有外设驱动（USART、QSPI、I2C 等）|
-| `SoC/ns_core0/Common/Source/GCC/startup_ns_core0.S` | 主核启动文件 |
-| `SoC/ns_core1/Common/Source/GCC/startup_ns_core1.S` | 从核启动文件 |
-| `SoC/ns_core0/Board/fpga_eval/Source/GCC/gcc_ns_core0_*.ld` | 主核链接脚本 |
-| `SoC/ns_core1/Board/fpga_eval/Source/GCC/gcc_ns_core1_*.ld` | 从核链接脚本 |
-| `SoC/ns_core0/Board/fpga_eval/openocd_ns_core0.cfg` | 主核 OpenOCD 配置 |
+| `SoC/ns_core0/Common/Source/GCC/startup_ns_core0.S` | 从核启动文件 |
+| `SoC/ns_core1/Common/Source/GCC/startup_ns_core1.S` | 主核启动文件 |
+| `SoC/ns_core0/Board/fpga_eval/Source/GCC/gcc_ns_core0_*.ld` | 从核链接脚本 |
+| `SoC/ns_core1/Board/fpga_eval/Source/GCC/gcc_ns_core1_*.ld` | 主核链接脚本 |
+| `SoC/ns_core0/Board/fpga_eval/openocd_ns_core0.cfg` | 从核 OpenOCD 配置 |
 | `SoC/ns_core0/Board/fpga_eval/openocd_ns_core0_all.cfg` | 全芯片 OpenOCD（双核调试）|
 | `application/baremetal/smphello/` | 双核 hart 路由与 spinlock 参考 |
 | `application/baremetal/demo_cidu/` | **IDU 核间中断实现参考（IPC 核间通知依赖此）** |
@@ -999,12 +999,12 @@ QL25 的平台开发在芯莱定制 SDK 基础上，已有完整的 SoC 支持�
 | CPU 名称 | N310 | xunlian v5.5.0（N300 系列）| CPU 型号描述更正 |
 | CORE 变量 | `n300f` | `core0_n300f` / `core1_n300f` | 构建命令需带核前缀 |
 | Download 模式 | `sram` / `flashxip` | `ilm` / `flashxip0` | 命令行参数更新 |
-| Core 0 ILM | 无（仅 BootROM 16KB）| **64 KB** @ `0x08000000` | 主核可利用 ILM 减少外部 SRAM 依赖 |
-| Core 0 DLM | 无（32KB 不可用）| **32 KB** @ `0x08010000` | 主核有独立数据区 |
-| Core 1 ILM | 48 KB | **64 KB** @ `0x09000000` | 热点代码预算从 48KB 变为可用 64KB（建议仍控制在 48KB）|
-| Core 1 DLM | 无 | **32 KB** @ `0x09010000` | 从核有独立数据区，descriptor ring 等可放此 |
-| Core 0 I-Cache | 32 KB | **16 KB**（ADDR_WIDTH=14）| 缩小，注意代码布局 |
-| Core 1 I-Cache | 16 KB | **32 KB**（ADDR_WIDTH=15）| 增大，利好从核快路径 |
+| Core 0（从核）ILM | 无（仅 BootROM 16KB）| **64 KB** @ `0x08000000` | 从核可利用 ILM 放热点转发代码 |
+| Core 0（从核）DLM | 无（32KB 不可用）| **32 KB** @ `0x08010000` | 从核有独立数据区，descriptor ring 等可放此 |
+| Core 1（主核）ILM | 48 KB | **64 KB** @ `0x09000000` | 主核可利用 ILM 减少外部 SRAM 依赖 |
+| Core 1（主核）DLM | 无 | **32 KB** @ `0x09010000` | 主核有独立数据区 |
+| Core 0（从核）I-Cache | 16 KB | **16 KB**（ADDR_WIDTH=14）| 从核 I-Cache 较小，注意热路径代码布局 |
+| Core 1（主核）I-Cache | 32 KB | **32 KB**（ADDR_WIDTH=15）| 主核 I-Cache 较大 |
 | IRQ 数量 | 48 个 | **128 个** | 中断资源更充裕 |
 | 共享 SRAM | 16 KB 内部 | **外部 SRAM 4 banks 共 384KB**（可灵活分配）| 共享区不再紧张 |
 | 核间中断 | CIDU | **IDU**（`INTER_CORE_IRQn = 19`）| 使用 SDK 的 `ns_idu` 驱动 |
