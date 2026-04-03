@@ -1,0 +1,5 @@
++TEST_LOOPBACK=qspi1_autotest_connect
+
++TEST_TO_VALUE=3000000000
+
++fast_sim
