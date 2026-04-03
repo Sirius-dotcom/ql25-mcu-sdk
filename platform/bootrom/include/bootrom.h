@@ -184,12 +184,21 @@ typedef struct {
  *
  * TODO: 根据硬件原理图设置实际 GPIO 基址和 pin 编号
  */
-#define BOOT_PIN_GPIO_BASE      0x10050000UL    /* TODO: LGPIO0 基址，需确认 */
-#define BOOT_PIN0_BIT           0               /* TODO: BOOT_PIN0 对应 GPIO bit */
-#define BOOT_PIN1_BIT           1               /* TODO: BOOT_PIN1 对应 GPIO bit */
+/*
+ * LGPIO0 基址和寄存器偏移（已从 SDK ns.h 确认）：
+ *   LGPIO0_BASE = 0x100a0000（ns.h:923）
+ *   PAD_GRP0_IVAL = offset 0x00（ns.h:521，输入电平寄存器）
+ *   PAD_GRP0_IEN  = offset 0x04（ns.h:522，输入使能寄存器）
+ *
+ * Boot pin 对应的 GPIO bit 号需要根据原理图确认。
+ */
+#define BOOT_PIN_GPIO_BASE      0x100a0000UL    /* LGPIO0_BASE（ns.h:923） */
+#define BOOT_PIN0_BIT           0               /* TODO: BOOT_PIN0 对应 GPIO bit，需根据原理图 */
+#define BOOT_PIN1_BIT           1               /* TODO: BOOT_PIN1 对应 GPIO bit，需根据原理图 */
 
-/* LGPIO 寄存器偏移（最小集，只用输入读取） */
-#define LGPIO_DATAIN_OFS        0x00            /* TODO: 输入数据寄存器偏移，需确认 */
+/* LGPIO 寄存器偏移 */
+#define LGPIO_IVAL_OFS          0x00            /* PAD_GRP0_IVAL: 输入电平（ns.h:521） */
+#define LGPIO_IEN_OFS           0x04            /* PAD_GRP0_IEN:  输入使能（ns.h:522） */
 
 /* ========================================================================
  * 错误码

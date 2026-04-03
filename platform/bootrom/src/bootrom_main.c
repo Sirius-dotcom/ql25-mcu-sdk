@@ -283,7 +283,7 @@ static uint32_t bootrom_read_boot_pins(void)
      *   2 = JTAG 调试
      *   3 = 预留
      */
-    uint32_t gpio_val = REG_READ(BOOT_PIN_GPIO_BASE, LGPIO_DATAIN_OFS);
+    uint32_t gpio_val = REG_READ(BOOT_PIN_GPIO_BASE, LGPIO_IVAL_OFS);
 
     uint32_t pin0 = (gpio_val >> BOOT_PIN0_BIT) & 0x1;
     uint32_t pin1 = (gpio_val >> BOOT_PIN1_BIT) & 0x1;
