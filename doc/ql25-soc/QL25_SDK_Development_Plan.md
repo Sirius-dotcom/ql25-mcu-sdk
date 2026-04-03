@@ -1015,3 +1015,46 @@ QL25 的平台开发在芯莱定制 SDK 基础上，已有完整的 SoC 支持�
 | 系统头文件 | `system_ql25.h` | `system_ns.h` | 文件名更新 |
 | 外设驱动 | 需全部从零开发 | **SDK 已提供完整驱动** | HAL 层改为封装已有驱动而非重新实现 |
 | RTOS 支持 | 仅 FreeRTOS | **FreeRTOS + RT-Thread + uCOS-II** | 有备选 RTOS |
+
+
+##附录二：已实现部分
+
+###创建完成。文件清单：
+
+
+platform/osal/
+├── include/
+│   └── osal.h              ← 统一接口定义（26 个 API）
+├── src/
+│   └── osal_freertos.c     ← FreeRTOS V10.3.1 实现
+└── build.mk                ← SDK 构建集成
+
+application/freertos/osal_demo/
+├── main.c                  ← 单核验证 demo
+├── FreeRTOSConfig.h        ← 验证用配置（tick=1000Hz，heap=16KB）
+└── Makefile                ← 构建入口
+OSAL 接口总览
+类别	API	封装对象
+Task	create / delete / delay_ms / stack_watermark	xTaskCreate / vTaskDelete / vTaskDelay / uxTaskGetStackHighWaterMark
+Queue	create / delete / send / recv / waiting	xQueueCreate / xQueueSendToBack / xQueueReceive / uxQueueMessagesWaiting
+Mutex	create / delete / lock / unlock	xSemaphoreCreateMutex / xSemaphoreTake / xSemaphoreGive
+Semaphore	create / delete / wait / post	xSemaphoreCreateCounting / xSemaphoreTake / xSemaphoreGive
+Timer	create / delete / start / stop / reset	xTimerCreate / xTimerStart / xTimerStop / xTimerReset
+Time	time_ms / tick_get	xTaskGetTickCount
+Critical	critical_enter / critical_exit	taskENTER_CRITICAL / taskEXIT_CRITICAL
+Scheduler	scheduler_start / scheduler_is_running	vTaskStartScheduler / xTaskGetSchedulerState
+关键设计决策
+超时统一 ms — 内部通过 pdMS_TO_TICKS() 转换，OSAL_WAIT_FOREVER → portMAX_DELAY
+ISR 不走 OSAL — ISR 中直接调 FreeRTOS FromISR 系列 API，避免额外开销
+FreeRTOS 头文件隔离 — 只在 osal_freertos.c 中 #include "FreeRTOS.h"，业务层只 #include "osal.h"
+不用动态类型识别 — handle 都是 void* 强转，零开销
+验证 demo 构建命令
+
+# 从核单核验证
+make SOC=ns_core0 BOARD=fpga_eval DOWNLOAD=ilm RTOS=FreeRTOS \
+     APP=application/freertos/osal_demo
+
+# 或主核单核验证
+make SOC=ns_core1 BOARD=fpga_eval DOWNLOAD=ilm RTOS=FreeRTOS \
+     APP=application/freertos/osal_demo
+Demo 会依次验证 task、queue（50 条消息收发）、mutex（两任务竞争 1000 次递增）、semaphore（30 次同步）、timer（50ms 周期回调计数）、stack watermark，最终打印 PASS/FAIL 汇总。
