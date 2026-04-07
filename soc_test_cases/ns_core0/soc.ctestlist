@@ -395,3 +395,4 @@ big_sram_internal_test
 full_addr_scan
 tb_sram_scan
 sram_dma_mode_test
+UTB_mac_phy_loopback
