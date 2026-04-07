@@ -53,13 +53,13 @@ platform/ipc/
 
 ```
 偏移        大小      内容
-0x0000      256B      IPC 控制块（boot_flag, ready 标志, 版本, 状态）
-0x0100      1KB       ctrl_req_ring（8 槽 × 128B）
-0x0500      1KB       ctrl_rsp_ring（8 槽 × 128B）
-0x0900      2KB       event_ring（16 槽 × 128B，预留，第二步）
-0x1100      256B      state_snapshot（预留，第二步）
-0x1200      256B      stats_snapshot（预留，第二步）
-0x1300      ...       未分配（约 59KB 余量）
+0x0000      256B      IPC 控制块（magic, ready 标志, 版本, 状态）
+0x0100      1056B     ctrl_req_ring（32B desc + 8 × 128B slot）
+0x0600      1056B     ctrl_rsp_ring（32B desc + 8 × 128B slot）
+0x0B00      2080B     event_ring（32B desc + 16 × 128B slot）
+0x1400      256B      state_snapshot（seqlock 模型）
+0x1500      256B      stats_snapshot（seqlock 模型）
+0x1600      ...       未分配（约 58KB 余量）
 ```
 
 **Ring 参数：**
@@ -94,28 +94,48 @@ void utb_ipc_kick_peer(void);
 int  utb_ipc_is_peer_ready(void);
 ```
 
-### 第二步：事件与快照
+### 第二步：事件与快照（已实现）
 
-**前置：** 第一步完成并在 FPGA 双核验证通过。
+| 模块 | 文件 | 内容 |
+|------|------|------|
+| event_ring | `utb_ipc_event.c` | 告警/故障/metadata 单向事件（从核→主核），depth=16 |
+| state_snapshot | `utb_ipc_snapshot.c` | 从核状态快照（seqlock 模型，256B 区域） |
+| stats_snapshot | `utb_ipc_snapshot.c` | 从核统计快照（同 seqlock 模型，独立 256B 区域） |
 
-| 模块 | 内容 |
-|------|------|
-| event_ring | 告警/故障/metadata 单向事件（从核→主核） |
-| state_snapshot | 从核状态快照（overwrite + generation 序号） |
-| stats_snapshot | 从核统计快照（周期更新，主核轮询读取） |
-| mgmt_ring | 管理帧上送（从核→主核，独立于 event_ring） |
+**事件类型（cmd_id 字段）：**
+- `UTB_IPC_EVT_ALARM` (0x0001) — 告警
+- `UTB_IPC_EVT_FAULT` (0x0002) — 故障
+- `UTB_IPC_EVT_METADATA` (0x0003) — 元数据
+- `UTB_IPC_EVT_LINK_UP` (0x0004) / `LINK_DOWN` (0x0005) — 链路状态
 
-### 第三步：完整消息契约与健壮性
+**快照 seqlock 读写模型：** 写者递增 generation（奇数=写入中，偶数=完成），读者双次读 generation 检测撕裂。无锁、无阻塞、有界重试（16 次）。
 
-**前置：** 第二步完成。
+**mgmt_ring** 留待第三步，独立于 event_ring。
 
-| 模块 | 内容 |
-|------|------|
-| 消息类型 | 全部 7 种 payload 结构定义与解析 |
-| timeout/retry | 控制/配置类消息的超时与有限重试 |
-| backpressure | ring 满时的反压计数与溢出处理 |
-| recovery | 对端重启检测、事务 fail、IPC 重建 |
-| 可观测性 | depth/timeout/retry/drop/invalid/recovery 计数器 |
+### 第三步：完整消息契约与健壮性（已实现）
+
+| 模块 | 文件 | 内容 |
+|------|------|------|
+| 消息契约 | `utb_ipc_msg.h` | 7 种 payload 结构 + 命令 ID + 编译期大小断言 |
+| timeout/retry | `utb_ipc_init.c` | `utb_ipc_ctrl_request_sync()` 阻塞轮询 + 有界重试 |
+| backpressure | `utb_ipc_event.c` | ring 满时 tail-drop + `g_ipc_diag` 计数 |
+| recovery | `utb_ipc_recovery.c` | boot_gen 重启检测 + 心跳存活判定 + `utb_ipc_recover()` |
+| 可观测性 | `utb_ipc_stats.c` | `g_ipc_diag` 全局计数器（ctrl/event/snap/timeout/retry/recovery） |
+
+**命令 ID 命名空间：**
+- 0x01xx：控制命令（NOP / HEARTBEAT / RESET_DP / GET_STATUS / GET_VERSION）
+- 0x02xx：配置命令（SET_CONFIG / GET_CONFIG / DEL_CONFIG）
+- 0x00xx：事件类型（ALARM / FAULT / METADATA / LINK_UP / LINK_DOWN）
+
+**控制块新增字段：**
+- `primary_hb_tick` / `secondary_hb_tick`：心跳时间戳
+- `primary_boot_gen` / `secondary_boot_gen`：启动代数（跨重启递增）
+
+**同步请求 API：** `utb_ipc_ctrl_request_sync(cmd_id, req, req_len, rsp, rsp_max, &result, timeout_cycles, max_retry)` — 发送 + 轮询 rsp ring 匹配 txn_id，超时重试。
+
+**反压策略：** 严格 SPSC 合约，ring 满时 tail-drop（不修改 head）。URGENT 标志标记优先级但不强制投递。
+
+**恢复流程：** 应用层周期调用 `utb_ipc_check_peer_restart()` → 检测到重启 → `utb_ipc_recover()` → 等待 `utb_ipc_is_peer_ready()`
 
 ## SPSC Ring 设计要点
 
