@@ -14,6 +14,7 @@ C_SRCS += $(PLATFORM_IPC_DIR)src/utb_ipc_ring.c
 C_SRCS += $(PLATFORM_IPC_DIR)src/utb_ipc_notify.c
 C_SRCS += $(PLATFORM_IPC_DIR)src/utb_ipc_init.c
 C_SRCS += $(PLATFORM_IPC_DIR)src/utb_ipc_event.c
+C_SRCS += $(PLATFORM_IPC_DIR)src/utb_ipc_heartbeat.c
 C_SRCS += $(PLATFORM_IPC_DIR)src/utb_ipc_snapshot.c
 C_SRCS += $(PLATFORM_IPC_DIR)src/utb_ipc_stats.c
 

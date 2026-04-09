@@ -26,20 +26,20 @@ Use this file to form the initial system model, then load the relevant skill.
 
 Start here:
 
-- overall architecture and repo map → `utb-repo-overview`
-- AMP boot / release-secondary / shared boot contract → `utb-boot-bringup`
-- SDK SoC layout and build model → `utb-sdk-layout-and-build`
-- core ownership / peripheral ownership / cross-core boundaries → `utb-core-ownership`
-- IPC ring / IDU / shared memory / snapshot model → `utb-ipc-and-shared-memory`
-- ILM / DLM / SRAM / Flash placement and budgets → `utb-memory-placement`
-- FreeRTOS / OSAL rules for this repo → `utb-freertos-osal`
-- forwarding-plane implementation focus → `utb-forwarding-repo-map`
-- management-plane implementation focus → `utb-management-repo-map`
-- bringup / development steps → `utb-develop-workflow`
-- bug triage / debugging sequence → `utb-debug-workflow`
-- ECLIC interrupt / ISR design / exception handling → `utb-interrupt-exception`
-- testing strategy / validation checklist / regression → `utb-testing-validation`
-- step-by-step driver/HAL implementation template → `utb-driver-implementation`
+- overall architecture and repo map -> `utb-repo-overview`
+- AMP boot / release-secondary / shared boot contract -> `utb-boot-bringup`
+- SDK SoC layout and build model -> `utb-sdk-layout-and-build`
+- core ownership / peripheral ownership / cross-core boundaries -> `utb-core-ownership`
+- IPC ring / IDU / shared memory / snapshot model -> `utb-ipc-and-shared-memory`
+- ILM / DLM / SRAM / Flash placement and budgets -> `utb-memory-placement`
+- FreeRTOS / OSAL rules for this repo -> `utb-freertos-osal`
+- forwarding-plane implementation focus -> `utb-forwarding-repo-map`
+- management-plane implementation focus -> `utb-management-repo-map`
+- bringup / development steps -> `utb-develop-workflow`
+- bug triage / debugging sequence -> `utb-debug-workflow`
+- ECLIC interrupt / ISR design / exception handling -> `utb-interrupt-exception`
+- testing strategy / validation checklist / regression -> `utb-testing-validation`
+- step-by-step driver/HAL implementation template -> `utb-driver-implementation`
 
 When details are not in this file, look up the skill before inferring architecture.
 
@@ -127,7 +127,7 @@ Prefer:
 - simple C over macro-heavy or framework-style designs
 - message passing over ambiguous shared mutable state
 
-Avoid firmware-inappropriate “enterprise software” patterns.
+Avoid firmware-inappropriate "enterprise software" patterns.
 
 ### 3. Explain embedded risk
 
@@ -268,7 +268,7 @@ When using shared memory between cores:
 - define buffer lifecycle
 - define barrier / visibility requirements
 - define timeout and recovery behavior
-- avoid “both cores may modify anytime” designs
+- avoid "both cores may modify anytime" designs
 
 Preferred patterns:
 
@@ -282,7 +282,7 @@ Avoid:
 - unsynchronized shared structs with many writable fields
 - shared linked lists
 - implicit cross-core lifetime assumptions
-- volatile-only “synchronization”
+- volatile-only "synchronization"
 
 ### 4. Inter-core signaling
 
@@ -304,7 +304,7 @@ Any change affecting startup must consider:
 - whether the second core may observe partially initialized state
 - reset/recovery asymmetry between cores
 
-Be careful with “init once” assumptions.
+Be careful with "init once" assumptions.
 
 ---
 
@@ -588,7 +588,7 @@ Any change that touches startup must preserve the architectural bringup sequence
 8. slave validates boot state and reports ready
 9. master confirms IPC ready before allowing management attach
 
-Do not merge, skip, or “simplify” these steps without explicit architectural approval.
+Do not merge, skip, or "simplify" these steps without explicit architectural approval.
 
 ---
 
@@ -719,11 +719,11 @@ Keep explanations concise and technical.
 
 Example review wording:
 
-- “This callback appears to run in ISR context, so `xQueueSend()` should be replaced with `xQueueSendFromISR()`.”
-- “The shared descriptor is writable by both cores without ownership transfer; this is unsafe in AMP.”
-- “This polling loop has no timeout and can hang forever if the peripheral never sets READY.”
-- “This adds a 512-byte local buffer on a task stack path; stack impact should be reviewed.”
-- “This change touches slave hot-path placement and may increase ILM pressure.”
+- "This callback appears to run in ISR context, so `xQueueSend()` should be replaced with `xQueueSendFromISR()`."
+- "The shared descriptor is writable by both cores without ownership transfer; this is unsafe in AMP."
+- "This polling loop has no timeout and can hang forever if the peripheral never sets READY."
+- "This adds a 512-byte local buffer on a task stack path; stack impact should be reviewed."
+- "This change touches slave hot-path placement and may increase ILM pressure."
 
 ---
 
