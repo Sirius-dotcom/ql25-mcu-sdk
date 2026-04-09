@@ -1,0 +1,25 @@
+# Local backup and history
+.backup_sync/
+.history/
+
+# Workspace / IDE metadata
+work.nuworkspace
+.metadata/
+**/.project
+**/.cproject
+**/.settings/
+
+# Build artifacts
+*.o
+*.o.d
+*.elf
+*.map
+*.dump
+*.dasm
+*.hex
+*.srec
+*.verilog
+
+# Local archive drops
+*.tar
+platform/*.zip
