@@ -28,6 +28,12 @@
 #define FENCE()     __asm volatile("fence" ::: "memory")
 #define FENCE_I()   __asm volatile("fence.i" ::: "memory")
 
+#if BOOTROM_VERBOSE_LOG
+#define BOOTROM_LOG(msg)    bootrom_uart_puts(msg)
+#else
+#define BOOTROM_LOG(msg)    ((void)0)
+#endif
+
 /* ========================================================================
  * CRC32（Nibble 查表法，表仅 64 字节，省 ROM 空间）
  * ======================================================================== */
@@ -61,7 +67,7 @@ void bootrom_hold_core0_reset(void)
     REG_SET(MISC_BASE, MISC_CTRL5_OFS, MISC_CTRL5_CORE0_STOP);
 }
 
-static void bootrom_release_core0(void)
+void bootrom_release_core0(void)
 {
     /* 释放从核（Core 0） */
     REG_CLR(MISC_BASE, MISC_CTRL5_OFS, MISC_CTRL5_CORE0_STOP);
@@ -143,6 +149,56 @@ int bootrom_uart_recv(uint8_t *buf, uint32_t len, uint32_t timeout_cycles)
     return 0;
 }
 
+static void bootrom_copy_bytes(void *dst, const void *src, uint32_t len)
+{
+    uint8_t *d = (uint8_t *)dst;
+    const uint8_t *s = (const uint8_t *)src;
+
+    for (uint32_t i = 0; i < len; i++) {
+        d[i] = s[i];
+    }
+}
+
+static int bootrom_range_fits(uint32_t base, uint32_t size, uint32_t addr, uint32_t len)
+{
+    uint32_t end;
+    uint32_t limit = base + size;
+
+    if (len == 0U) {
+        return 0;
+    }
+    if (addr < base || addr >= limit) {
+        return 0;
+    }
+    end = addr + len;
+    if (end < addr) {
+        return 0;
+    }
+    return end <= limit;
+}
+
+static int bootrom_is_valid_load_range(uint32_t addr, uint32_t len)
+{
+    return bootrom_range_fits(CORE0_ILM_BASE, CORE0_ILM_SIZE, addr, len) ||
+           bootrom_range_fits(SRAM0_BASE, SRAM0_SIZE, addr, len) ||
+           bootrom_range_fits(SRAM1_BASE, SRAM1_SIZE, addr, len) ||
+           bootrom_range_fits(SRAM2_BASE, SRAM2_SIZE, addr, len) ||
+           bootrom_range_fits(SRAM3_BASE, SRAM3_SIZE, addr, len);
+}
+
+static int bootrom_is_valid_flash_offset(uint32_t offset, uint32_t len)
+{
+    uint32_t end = offset + len;
+
+    if (offset >= FLASH_TOTAL_SIZE) {
+        return 0;
+    }
+    if (end < offset) {
+        return 0;
+    }
+    return end <= FLASH_TOTAL_SIZE;
+}
+
 /* ========================================================================
  * 硬件操作：QSPI XIP0 Flash 读取
  * ======================================================================== */
@@ -159,27 +215,81 @@ int bootrom_uart_recv(uint8_t *buf, uint32_t len, uint32_t timeout_cycles)
  * 如果不行，需要补充 bootrom_qspi_init() 和 bootrom_flash_read()。
  */
 
+void bootrom_qspi_init(void)
+{
+    REG_SET(MISC_BASE, SUBM_CLK_CTRL0_OFS, BIT(SUBM_QSPI_XIP0_BIT));
+    REG_CLR(MISC_BASE, SUBM_RESET_CTRL0_OFS, BIT(SUBM_QSPI_XIP0_BIT));
+    REG_SET(MISC_BASE, SUBM_RESET_CTRL0_OFS, BIT(SUBM_QSPI_XIP0_BIT));
+
+    REG_WRITE(QSPI_XIP0_BASE, QSPI_XIP_SCKDIV_OFS, QSPI_XIP_SCKDIV_8);
+    REG_WRITE(QSPI_XIP0_BASE, QSPI_XIP_SCKMODE_OFS, 0);
+    REG_WRITE(QSPI_XIP0_BASE, QSPI_XIP_FORCE_OFS, QSPI_XIP_FORCE_EN | QSPI_XIP_FORCE_WP);
+    REG_WRITE(QSPI_XIP0_BASE, QSPI_XIP_CSMODE_OFS, 0);
+    REG_WRITE(QSPI_XIP0_BASE, QSPI_XIP_FMT_OFS, 0);
+    REG_WRITE(QSPI_XIP0_BASE, QSPI_XIP_SDR_SCKSAMPLE_OFS, 0);
+    REG_WRITE(QSPI_XIP0_BASE, QSPI_XIP_CR_OFS,
+              QSPI_XIP_CR_MODE_MASTER | QSPI_XIP_CR_CSOE_ENABLE | QSPI_XIP_CR_CSI_OFF);
+    REG_WRITE(QSPI_XIP0_BASE, QSPI_XIP_FFMT_OFS,
+              QSPI_XIP_FFMT_CMD_ENABLE |
+              QSPI_XIP_FFMT_ADDR_LEN_3B |
+              QSPI_XIP_FFMT_CMD_CODE(FLASH_CMD_READ));
+    REG_WRITE(QSPI_XIP0_BASE, QSPI_XIP_FFMT1_OFS, 0);
+    REG_WRITE(QSPI_XIP0_BASE, QSPI_XIP_FCTRL_OFS,
+              QSPI_XIP_FCTRL_FLASH_ENABLE | QSPI_XIP_FCTRL_BURST_ENABLE);
+
+    FENCE();
+    FENCE_I();
+}
+
 static const void *bootrom_flash_ptr(uint32_t offset)
 {
+    bootrom_qspi_init();
     return (const void *)(FLASH_XIP_BASE + offset);
 }
 
-static void bootrom_flash_read(uint32_t offset, void *dst, uint32_t len)
+void bootrom_flash_read(uint32_t offset, void *dst, uint32_t len)
 {
     /*
      * XIP 模式下直接 memcpy 即可。
      * 非 XIP 模式需要通过 QSPI 命令读取，TODO 补充。
      */
-    const uint8_t *src = (const uint8_t *)(FLASH_XIP_BASE + offset);
-    uint8_t *d = (uint8_t *)dst;
-    for (uint32_t i = 0; i < len; i++) {
-        d[i] = src[i];
-    }
+    const uint8_t *src;
+
+    bootrom_qspi_init();
+    src = (const uint8_t *)(FLASH_XIP_BASE + offset);
+    bootrom_copy_bytes(dst, src, len);
 }
 
 /* ========================================================================
  * 镜像头验证
  * ======================================================================== */
+
+static int bootrom_validate_partition_table(const partition_table_t *pt)
+{
+    partition_table_t tmp;
+
+    if (pt->magic != PARTITION_TABLE_MAGIC) {
+        return BOOTROM_ERR_PARTITION;
+    }
+    if ((pt->active_slot != SLOT_A) && (pt->active_slot != SLOT_B)) {
+        return BOOTROM_ERR_PARTITION;
+    }
+    if (!bootrom_is_valid_flash_offset(pt->slot_a_offset, IMAGE_HDR_SIZE) ||
+        !bootrom_is_valid_flash_offset(pt->slot_b_offset, IMAGE_HDR_SIZE) ||
+        !bootrom_is_valid_flash_offset(pt->slot_a_offset, SLOT_MAX_SIZE) ||
+        !bootrom_is_valid_flash_offset(pt->slot_b_offset, SLOT_MAX_SIZE) ||
+        (pt->slot_a_offset == pt->slot_b_offset)) {
+        return BOOTROM_ERR_PARTITION;
+    }
+
+    bootrom_copy_bytes(&tmp, pt, sizeof(tmp));
+    tmp.crc32 = 0;
+    if (bootrom_crc32(&tmp, sizeof(tmp)) != pt->crc32) {
+        return BOOTROM_ERR_BAD_CRC;
+    }
+
+    return BOOTROM_OK;
+}
 
 static int bootrom_validate_header(const image_header_t *hdr)
 {
@@ -190,11 +300,7 @@ static int bootrom_validate_header(const image_header_t *hdr)
 
     /* 检查头部 CRC（计算时 hdr_crc32 字段视为 0） */
     image_header_t tmp;
-    const uint8_t *src = (const uint8_t *)hdr;
-    uint8_t *dst = (uint8_t *)&tmp;
-    for (uint32_t i = 0; i < sizeof(tmp); i++) {
-        dst[i] = src[i];
-    }
+    bootrom_copy_bytes(&tmp, hdr, sizeof(tmp));
     tmp.hdr_crc32 = 0;
     uint32_t calc_crc = bootrom_crc32(&tmp, sizeof(tmp));
     if (calc_crc != hdr->hdr_crc32) {
@@ -202,6 +308,9 @@ static int bootrom_validate_header(const image_header_t *hdr)
     }
 
     /* 检查镜像大小合理性 */
+    if (hdr->hdr_version != IMAGE_HDR_VERSION) {
+        return BOOTROM_ERR_BAD_MAGIC;
+    }
     if (hdr->image_size == 0 || hdr->image_size > SLOT_MAX_SIZE) {
         return BOOTROM_ERR_TOO_LARGE;
     }
@@ -210,53 +319,79 @@ static int bootrom_validate_header(const image_header_t *hdr)
     if (hdr->entry_point == 0) {
         return BOOTROM_ERR_BAD_ENTRY;
     }
+    if ((hdr->boot_mode != BOOT_MODE_ILM) && (hdr->boot_mode != BOOT_MODE_XIP)) {
+        return BOOTROM_ERR_BAD_ENTRY;
+    }
+    if (hdr->boot_mode == BOOT_MODE_ILM) {
+        if (!bootrom_is_valid_load_range(hdr->load_addr, hdr->image_size)) {
+            return BOOTROM_ERR_BAD_ADDR;
+        }
+    }
 
     return BOOTROM_OK;
 }
 
 /* ========================================================================
- * 镜像加载与跳转
+ * BootLoader 镜像加载与跳转
  * ======================================================================== */
 
 static int bootrom_load_and_verify(uint32_t flash_offset)
 {
-    /* 读取镜像头 */
-    const image_header_t *hdr =
-        (const image_header_t *)bootrom_flash_ptr(flash_offset);
+    /* 读取 BootLoader 镜像头 */
+    const image_header_t *hdr;
+    uint32_t payload_offset;
+    const void *payload;
+    uint32_t calc_crc;
+    int ret;
+
+    if (!bootrom_is_valid_flash_offset(flash_offset, IMAGE_HDR_SIZE)) {
+        return BOOTROM_ERR_PARTITION;
+    }
+    hdr = (const image_header_t *)bootrom_flash_ptr(flash_offset);
 
     /* 验证头部 */
-    int ret = bootrom_validate_header(hdr);
+    ret = bootrom_validate_header(hdr);
     if (ret != BOOTROM_OK) {
         return ret;
     }
 
     /* payload 在头部之后 */
-    uint32_t payload_offset = flash_offset + IMAGE_HDR_SIZE;
-    const void *payload = bootrom_flash_ptr(payload_offset);
+    payload_offset = flash_offset + IMAGE_HDR_SIZE;
+    if (!bootrom_is_valid_flash_offset(payload_offset, hdr->image_size)) {
+        return BOOTROM_ERR_TOO_LARGE;
+    }
+    payload = bootrom_flash_ptr(payload_offset);
 
     /* 验证 payload CRC */
-    uint32_t calc_crc = bootrom_crc32(payload, hdr->image_size);
+    calc_crc = bootrom_crc32(payload, hdr->image_size);
     if (calc_crc != hdr->image_crc32) {
         return BOOTROM_ERR_BAD_CRC;
     }
 
-    /* 加载镜像 */
+    /* 加载 BootLoader 镜像 */
     if (hdr->boot_mode == BOOT_MODE_ILM) {
         /* 搬运到目标地址（通常是 Core 0 ILM 或 Core 1 外部 SRAM） */
-        if (hdr->image_size > CORE0_ILM_SIZE) {
-            return BOOTROM_ERR_TOO_LARGE;
-        }
         uint8_t *dst = (uint8_t *)hdr->load_addr;
-        const uint8_t *src = (const uint8_t *)payload;
-        for (uint32_t i = 0; i < hdr->image_size; i++) {
-            dst[i] = src[i];
+
+        if (!bootrom_range_fits(hdr->load_addr, hdr->image_size, hdr->entry_point, 1U)) {
+            return BOOTROM_ERR_BAD_ENTRY;
         }
+        bootrom_copy_bytes(dst, payload, hdr->image_size);
         FENCE();
         FENCE_I();
     }
     /* BOOT_MODE_XIP: 不需要搬运，直接从 Flash XIP 执行 */
 
-    /* 跳转到应用入口 */
+    /* 跳转到 BootLoader 入口 */
+    else {
+        uint32_t payload_addr = FLASH_XIP_BASE + payload_offset;
+
+        if (hdr->entry_point < payload_addr ||
+            hdr->entry_point >= (payload_addr + hdr->image_size)) {
+            return BOOTROM_ERR_BAD_ENTRY;
+        }
+    }
+
     bootrom_jump_to_app(hdr->entry_point);
 
     /* 不应到达这里 */
@@ -283,6 +418,8 @@ static uint32_t bootrom_read_boot_pins(void)
      *   2 = JTAG 调试
      *   3 = 预留
      */
+    REG_SET(BOOT_PIN_GPIO_BASE, LGPIO_IEN_OFS, BIT(BOOT_PIN0_BIT) | BIT(BOOT_PIN1_BIT));
+    FENCE();
     uint32_t gpio_val = REG_READ(BOOT_PIN_GPIO_BASE, LGPIO_IVAL_OFS);
 
     uint32_t pin0 = (gpio_val >> BOOT_PIN0_BIT) & 0x1;
@@ -341,12 +478,15 @@ int bootrom_detect_boot_mode(void)
     }
 
     /* 第三级：自动检测 Flash 有效性 */
-    const image_header_t *hdr_a =
-        (const image_header_t *)bootrom_flash_ptr(SLOT_A_OFFSET);
-    const image_header_t *hdr_b =
-        (const image_header_t *)bootrom_flash_ptr(SLOT_B_OFFSET);
+    bootrom_qspi_init();
 
-    if (hdr_a->magic == IMAGE_MAGIC || hdr_b->magic == IMAGE_MAGIC) {
+    const image_header_t *hdr_a =
+        (const image_header_t *)bootrom_flash_ptr(BOOTLOADER_SLOT_A_OFFSET);
+    const image_header_t *hdr_b =
+        (const image_header_t *)bootrom_flash_ptr(BOOTLOADER_SLOT_B_OFFSET);
+
+    if (bootrom_validate_header(hdr_a) == BOOTROM_OK ||
+        bootrom_validate_header(hdr_b) == BOOTROM_OK) {
         return BOOT_MODE_FLASH;
     }
 
@@ -359,6 +499,8 @@ int bootrom_detect_boot_mode(void)
  * ======================================================================== */
 
 /* 输出单个十六进制 nibble */
+#if BOOTROM_ENABLE_SHELL
+
 static void shell_put_nibble(uint32_t n)
 {
     n &= 0xF;
@@ -640,7 +782,7 @@ static void shell_cmd_mw(int argc, char *argv[])
 }
 
 /* ========================================================================
- * Shell 命令：info — 显示分区表和镜像信息
+ * Shell 命令：info — 显示分区表和 BootLoader 镜像信息
  * ======================================================================== */
 
 static void shell_show_image_info(const char *label, uint32_t flash_offset)
@@ -728,11 +870,11 @@ static void shell_cmd_info(void)
         bootrom_uart_puts(")\r\n");
     }
 
-    /* Slot A */
-    shell_show_image_info("Slot A @0x400:", SLOT_A_OFFSET);
+    /* BootLoader Slot A */
+    shell_show_image_info("BootLoader Slot A @0x400:", BOOTLOADER_SLOT_A_OFFSET);
 
-    /* Slot B */
-    shell_show_image_info("Slot B @0x100000:", SLOT_B_OFFSET);
+    /* BootLoader Slot B */
+    shell_show_image_info("BootLoader Slot B @0x100000:", BOOTLOADER_SLOT_B_OFFSET);
 }
 
 /* ========================================================================
@@ -774,7 +916,7 @@ static void shell_print_help(void)
     bootrom_uart_puts("Commands:\r\n");
     bootrom_uart_puts("  md <addr> [len]   - memory dump (hex, default 64B)\r\n");
     bootrom_uart_puts("  mw <addr> <val>   - memory write (32-bit)\r\n");
-    bootrom_uart_puts("  info              - show partition table & images\r\n");
+    bootrom_uart_puts("  info              - show partition table & bootloader images\r\n");
     bootrom_uart_puts("  go <addr>         - jump to address\r\n");
     bootrom_uart_puts("  boot flash        - boot from Flash\r\n");
     bootrom_uart_puts("  boot uart         - enter UART download\r\n");
@@ -850,6 +992,15 @@ int bootrom_uart_boot_menu(void)
     }
 }
 
+#else
+
+int bootrom_uart_boot_menu(void)
+{
+    return -1;
+}
+
+#endif
+
 /* ========================================================================
  * JTAG 调试模式
  * ======================================================================== */
@@ -881,8 +1032,8 @@ void bootrom_enter_jtag_mode(void)
     /* 在 SRAM3 起始写入标记，供调试器检测 */
     REG32(SRAM3_BASE) = 0x4A544147;  /* "JTAG" ASCII */
 
-    bootrom_uart_puts("JTAG mode: waiting for debugger...\r\n");
-    bootrom_uart_puts("Connect OpenOCD, halt, load, continue.\r\n");
+    BOOTROM_LOG("JTAG mode: waiting for debugger...\r\n");
+    BOOTROM_LOG("Connect OpenOCD, halt, load, continue.\r\n");
 
     /*
      * 死循环 + WFI
@@ -902,11 +1053,13 @@ int bootrom_boot_from_flash(void)
     /* 读分区表 */
     const partition_table_t *pt =
         (const partition_table_t *)bootrom_flash_ptr(0);
-
     uint32_t try_slot_offset;
     uint32_t fallback_offset;
+    int ret;
 
-    if (pt->magic == PARTITION_TABLE_MAGIC) {
+    bootrom_qspi_init();
+
+    if (bootrom_validate_partition_table(pt) == BOOTROM_OK) {
         /* 分区表有效，按 active_slot 选择 */
         if (pt->active_slot == SLOT_B) {
             try_slot_offset = pt->slot_b_offset;
@@ -916,18 +1069,18 @@ int bootrom_boot_from_flash(void)
             fallback_offset = pt->slot_b_offset;
         }
     } else {
-        /* 分区表无效，直接从 Slot A 启动（首次烧录场景） */
-        try_slot_offset = SLOT_A_OFFSET;
-        fallback_offset = SLOT_B_OFFSET;
+        /* 分区表无效，直接从 BootLoader Slot A 启动 */
+        try_slot_offset = BOOTLOADER_SLOT_A_OFFSET;
+        fallback_offset = BOOTLOADER_SLOT_B_OFFSET;
     }
 
     /* 尝试主分区 */
-    int ret = bootrom_load_and_verify(try_slot_offset);
+    ret = bootrom_load_and_verify(try_slot_offset);
     if (ret == BOOTROM_OK) {
         return BOOTROM_OK;  /* 不会到达，已跳转 */
     }
 
-    bootrom_uart_puts("SLOT1 fail, try fallback\r\n");
+    BOOTROM_LOG("BootLoader slot fail, try fallback\r\n");
 
     /* 主分区失败，尝试备份分区 */
     ret = bootrom_load_and_verify(fallback_offset);
@@ -940,7 +1093,7 @@ int bootrom_boot_from_flash(void)
 }
 
 /* ========================================================================
- * UART 下载启动
+ * UART 下载启动（下载并启动 BootLoader）
  * ======================================================================== */
 
 int bootrom_boot_from_uart(void)
@@ -949,7 +1102,7 @@ int bootrom_boot_from_uart(void)
      * UART 下载协议（115200 8N1）：
      *
      * 1. BootROM → Host: 发送同步标记 "QL25BOOT\n"
-     * 2. Host → BootROM: 64 字节镜像头
+     * 2. Host → BootROM: 64 字节 BootLoader 镜像头
      * 3. BootROM 验证头部，发送 ACK/NAK
      * 4. Host → BootROM: image_size 字节 payload
      * 5. BootROM 验证 CRC，发送 ACK/NAK
@@ -982,27 +1135,35 @@ int bootrom_boot_from_uart(void)
                 bootrom_uart_putc(UART_NAK);
                 continue;
             }
+            if (hdr.boot_mode != BOOT_MODE_ILM ||
+                hdr.image_size > BOOTROM_UART_STAGE_SIZE ||
+                !bootrom_is_valid_load_range(hdr.load_addr, hdr.image_size) ||
+                !bootrom_range_fits(hdr.load_addr, hdr.image_size, hdr.entry_point, 1U)) {
+                bootrom_uart_putc(UART_NAK);
+                continue;
+            }
 
             /* 头部有效，发送 ACK */
             bootrom_uart_putc(UART_ACK);
 
-            /* 接收 payload 到目标地址 */
-            uint8_t *load_dst = (uint8_t *)hdr.load_addr;
-            if (bootrom_uart_recv(load_dst, hdr.image_size, timeout) < 0) {
+            /* 接收 BootLoader payload 到 staging SRAM */
+            uint8_t *stage_dst = (uint8_t *)BOOTROM_UART_STAGE_BASE;
+            if (bootrom_uart_recv(stage_dst, hdr.image_size, timeout) < 0) {
                 bootrom_uart_putc(UART_NAK);
                 continue;
             }
 
             /* 验证 payload CRC */
-            uint32_t calc_crc = bootrom_crc32(load_dst, hdr.image_size);
+            uint32_t calc_crc = bootrom_crc32(stage_dst, hdr.image_size);
             if (calc_crc != hdr.image_crc32) {
                 bootrom_uart_putc(UART_NAK);
                 continue;
             }
 
             /* 全部验证通过 */
+            bootrom_copy_bytes((void *)hdr.load_addr, stage_dst, hdr.image_size);
             bootrom_uart_putc(UART_ACK);
-            bootrom_uart_puts("OK, jump\r\n");
+            BOOTROM_LOG("OK, jump\r\n");
 
             FENCE();
             FENCE_I();
@@ -1016,7 +1177,7 @@ int bootrom_boot_from_uart(void)
 }
 
 /* ========================================================================
- * 跳转到应用入口
+ * 跳转到 BootLoader / 下一阶段入口
  * ======================================================================== */
 
 void bootrom_jump_to_app(uint32_t entry_point)
@@ -1024,7 +1185,7 @@ void bootrom_jump_to_app(uint32_t entry_point)
     /*
      * 跳转前清理：
      * 1. fence.i 刷新 I-Cache（确保新搬运的代码可见）
-     * 2. 关中断（应用 startup 会重新配置）
+     * 2. 关中断（BootLoader startup 会重新配置）
      * 3. 跳转（不返回）
      */
     typedef void (*entry_fn_t)(void);
@@ -1032,7 +1193,7 @@ void bootrom_jump_to_app(uint32_t entry_point)
     FENCE();
     FENCE_I();
 
-    /* 关闭 BootROM 阶段的中断配置，让应用 startup 重新初始化 */
+    /* 关闭 BootROM 阶段的中断配置，让下一阶段 startup 重新初始化 */
     __asm volatile("csrc mstatus, %0" :: "r"(0x8));  /* MIE = 0 */
 
     entry_fn_t entry = (entry_fn_t)entry_point;
@@ -1095,7 +1256,7 @@ void bootrom_main(void)
 
     /* Step 2: 初始化 USART0（不论哪种模式都需要，用于调试输出） */
     bootrom_uart_init(UART_BAUDRATE);
-    bootrom_uart_puts("\r\nQL25 BootROM v1.0\r\n");
+    BOOTROM_LOG("\r\nQL25 BootROM v1.0\r\n");
 
     /* Step 3: 检测启动模式 */
     int mode = bootrom_detect_boot_mode();
@@ -1105,18 +1266,18 @@ void bootrom_main(void)
     switch (mode) {
     case BOOT_MODE_FLASH:
         /* Flash 正常启动（量产默认） */
-        bootrom_uart_puts("Flash boot...\r\n");
+        BOOTROM_LOG("Flash boot...\r\n");
         ret = bootrom_boot_from_flash();
 
         /* Flash 启动失败，自动 fallback 到 UART 下载 */
-        bootrom_uart_puts("Flash fail, UART mode\r\n");
+        BOOTROM_LOG("Flash fail, UART mode\r\n");
         ret = bootrom_boot_from_uart();
         bootrom_fatal((uint32_t)ret);
         break;
 
     case BOOT_MODE_UART_DL:
         /* UART 下载模式（boot pin 选择） */
-        bootrom_uart_puts("UART download mode\r\n");
+        BOOTROM_LOG("UART download mode\r\n");
         ret = bootrom_boot_from_uart();
         bootrom_fatal((uint32_t)ret);
         break;
@@ -1129,7 +1290,7 @@ void bootrom_main(void)
 
     default:
         /* BOOT_MODE_RESERVED 或非法值：进入 UART 下载作为安全兜底 */
-        bootrom_uart_puts("Reserved mode, UART fallback\r\n");
+        BOOTROM_LOG("Reserved mode, UART fallback\r\n");
         ret = bootrom_boot_from_uart();
         bootrom_fatal((uint32_t)ret);
         break;

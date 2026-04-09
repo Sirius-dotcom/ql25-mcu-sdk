@@ -12,6 +12,7 @@
 # TODO: CROSS_COMPILE 根据实际工具链路径修改
 
 CROSS_COMPILE ?= riscv-nuclei-elf-
+PROFILE ?= debug
 
 CC      = $(CROSS_COMPILE)gcc
 AS      = $(CROSS_COMPILE)gcc
@@ -24,11 +25,13 @@ SIZE    = $(CROSS_COMPILE)size
 ARCH    = rv32imafc
 ABI     = ilp32f
 
-TARGET  = bootrom
+TARGET_BASE = bootrom
+TARGET  = $(TARGET_BASE)_$(PROFILE)
 
 # 源文件
 ASM_SRCS = src/bootrom_entry.S
 C_SRCS   = src/bootrom_main.c
+OBJDIR   = build/$(PROFILE)
 
 # 头文件路径
 INCLUDES = -Iinclude
@@ -54,9 +57,21 @@ LDFLAGS = -march=$(ARCH) -mabi=$(ABI) \
           -Wl,--gc-sections \
           -Wl,-Map=$(TARGET).map
 
-OBJS    = $(ASM_SRCS:.S=.o) $(C_SRCS:.c=.o)
+ifeq ($(PROFILE),debug)
+CFLAGS  += -DBOOTROM_ENABLE_SHELL=1 -DBOOTROM_VERBOSE_LOG=1
+ASFLAGS += -DBOOTROM_ENABLE_SHELL=1 -DBOOTROM_VERBOSE_LOG=1
+else ifeq ($(PROFILE),minimal)
+CFLAGS  += -DBOOTROM_ENABLE_SHELL=0 -DBOOTROM_VERBOSE_LOG=0
+ASFLAGS += -DBOOTROM_ENABLE_SHELL=0 -DBOOTROM_VERBOSE_LOG=0
+else
+$(error Unsupported PROFILE '$(PROFILE)'. Use PROFILE=debug or PROFILE=minimal)
+endif
 
-.PHONY: all clean size dump
+ASM_OBJS = $(patsubst src/%.S,$(OBJDIR)/%.o,$(ASM_SRCS))
+C_OBJS   = $(patsubst src/%.c,$(OBJDIR)/%.o,$(C_SRCS))
+OBJS    = $(ASM_OBJS) $(C_OBJS)
+
+.PHONY: all clean size dump verilog mem32 bin32
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -68,10 +83,25 @@ $(TARGET).bin: $(TARGET).elf
 	$(OBJCOPY) -O binary $< $@
 	@echo "BootROM binary: $@ ($$(wc -c < $@) bytes / 16384 max)"
 
-%.o: %.S
+$(TARGET).verilog: $(TARGET).elf
+	$(OBJCOPY) -O verilog --verilog-data-width 4 $< $@
+	@echo "BootROM verilog: $@ (32-bit words)"
+
+$(TARGET).mem32: $(TARGET).verilog
+	powershell -ExecutionPolicy Bypass -File tools/verilog_to_mem32.ps1 -InputFile "$<" -OutputFile "$@"
+	@echo "BootROM mem32: $@ (one 32-bit word per line)"
+
+$(TARGET).bin32: $(TARGET).mem32
+	powershell -ExecutionPolicy Bypass -File tools/mem32_to_bin32.ps1 -InputFile "$<" -OutputFile "$@"
+	@echo "BootROM bin32: $@ (one 32-bit binary word per line)"
+
+$(OBJDIR):
+	mkdir -p $(OBJDIR)
+
+$(OBJDIR)/%.o: src/%.S | $(OBJDIR)
 	$(AS) $(ASFLAGS) -c -o $@ $<
 
-%.o: %.c
+$(OBJDIR)/%.o: src/%.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 size: $(TARGET).elf
@@ -81,5 +111,15 @@ dump: $(TARGET).elf
 	$(OBJDUMP) -d -S $< > $(TARGET).dis
 	@echo "Disassembly: $(TARGET).dis"
 
+verilog: $(TARGET).verilog
+
+mem32: $(TARGET).mem32
+
+bin32: $(TARGET).bin32
+
 clean:
-	rm -f $(OBJS) $(TARGET).elf $(TARGET).bin $(TARGET).map $(TARGET).dis
+	rm -rf build
+	rm -f $(TARGET_BASE)_debug.elf $(TARGET_BASE)_debug.bin $(TARGET_BASE)_debug.map $(TARGET_BASE)_debug.dis \
+	      $(TARGET_BASE)_debug.verilog $(TARGET_BASE)_debug.mem32 $(TARGET_BASE)_debug.bin32 \
+	      $(TARGET_BASE)_minimal.elf $(TARGET_BASE)_minimal.bin $(TARGET_BASE)_minimal.map $(TARGET_BASE)_minimal.dis \
+	      $(TARGET_BASE)_minimal.verilog $(TARGET_BASE)_minimal.mem32 $(TARGET_BASE)_minimal.bin32

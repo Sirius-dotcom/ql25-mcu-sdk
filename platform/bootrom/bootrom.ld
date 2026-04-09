@@ -68,6 +68,8 @@ SECTIONS
     /* 确认没有可写全局变量（.data 应该为空） */
     ASSERT(_data_end == _data_start,
            "BootROM must not have writable .data section! Use const or stack variables only.")
+    ASSERT(_bss_end == _bss_start,
+           "BootROM must not have writable .bss section! Use const or stack variables only.")
 
     /DISCARD/ :
     {

@@ -4,6 +4,7 @@
 #include "utb_hal_flash.h"
 #include "utb_hal_i2c.h"
 #include "utb_hal_irq.h"
+#include "utb_hal_mac.h"
 #include "utb_hal_spi.h"
 
 #endif /* UTB_HAL_H */

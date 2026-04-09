@@ -29,7 +29,14 @@ typedef struct {
     void *private;
 } utb_hal_spi_handle_t;
 
+typedef struct {
+    void *inst;
+} utb_hal_spi_static_storage_t;
+
 utb_hal_spi_handle_t *utb_hal_spi_open(const utb_hal_spi_cfg_t *cfg);
+int utb_hal_spi_open_static(utb_hal_spi_handle_t *handle,
+                            utb_hal_spi_static_storage_t *storage,
+                            const utb_hal_spi_cfg_t *cfg);
 void utb_hal_spi_close(utb_hal_spi_handle_t *handle);
 int utb_hal_spi_set_clock_div(utb_hal_spi_handle_t *handle, uint32_t clock_div);
 int utb_hal_spi_transfer(utb_hal_spi_handle_t *handle,

@@ -94,7 +94,8 @@ _bootrom_start:
     csrw CSR_MTVEC, t0
     li   t0, 0x3f
     csrc CSR_MTVEC, t0
-    csrs CSR_MTVEC, 0x3
+    li   t0, 0x3
+    csrs CSR_MTVEC, t0
 
     /* ===== Stage 2: CPU 特性使能 ===== */
 

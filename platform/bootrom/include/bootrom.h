@@ -16,6 +16,16 @@
 
 #include <stdint.h>
 
+#define BIT(n)                  (1UL << (n))
+
+#ifndef BOOTROM_ENABLE_SHELL
+#define BOOTROM_ENABLE_SHELL    1
+#endif
+
+#ifndef BOOTROM_VERBOSE_LOG
+#define BOOTROM_VERBOSE_LOG     1
+#endif
+
 /* ========================================================================
  * 地址定义（需根据 SoC 实际内存映射调整）
  * ======================================================================== */
@@ -26,8 +36,11 @@
 
 /* 片上 SRAM（上电即可用） */
 #define SRAM0_BASE              0x30000000UL    /* 128KB */
+#define SRAM0_SIZE              (128 * 1024)
 #define SRAM1_BASE              0x30020000UL    /* 128KB */
+#define SRAM1_SIZE              (128 * 1024)
 #define SRAM2_BASE              0x30040000UL    /* 64KB  */
+#define SRAM2_SIZE              (64 * 1024)
 #define SRAM3_BASE              0x30060000UL    /* 64KB  */
 #define SRAM3_SIZE              (64 * 1024)
 
@@ -40,6 +53,10 @@
 
 /* Flash XIP 基址 */
 #define FLASH_XIP_BASE          0x20000000UL
+#define FLASH_TOTAL_SIZE        (2 * 1024 * 1024UL)
+
+#define BOOTROM_UART_STAGE_BASE SRAM2_BASE
+#define BOOTROM_UART_STAGE_SIZE SRAM2_SIZE
 
 /* ========================================================================
  * 外设基址（最小集，BootROM 只用这几个）
@@ -53,6 +70,9 @@
 #define MISC_CTRL5_OFS          0xC94UL         /* MISC_CTRL5（ns_misc.h: MISC_CTRL5_OFS） */
 #define MISC_CTRL5_CORE0_STOP   (1UL << 0)     /* BIT(0): soc_clk_core0_stop_on_reset */
 #define MISC_CTRL5_CORE1_STOP   (1UL << 1)     /* BIT(1): soc_clk_core1_stop_on_reset */
+#define SUBM_RESET_CTRL0_OFS    0x20UL
+#define SUBM_CLK_CTRL0_OFS      0x40UL
+#define SUBM_QSPI_XIP0_BIT      8U
 
 /* ========================================================================
  * USART 寄存器偏移（最小集）
@@ -67,6 +87,31 @@
 #define USART_DIV_OFS           0x18
 #define USART_TXDATA_FULL       (1UL << 31)
 #define USART_RXDATA_EMPTY      (1UL << 31)
+
+#define QSPI_XIP_SCKDIV_OFS         0x00
+#define QSPI_XIP_SCKMODE_OFS        0x04
+#define QSPI_XIP_FORCE_OFS          0x0C
+#define QSPI_XIP_CSMODE_OFS         0x18
+#define QSPI_XIP_FMT_OFS            0x40
+#define QSPI_XIP_FCTRL_OFS          0x60
+#define QSPI_XIP_FFMT_OFS           0x64
+#define QSPI_XIP_FFMT1_OFS          0x78
+#define QSPI_XIP_SDR_SCKSAMPLE_OFS  0x80
+#define QSPI_XIP_CR_OFS             0x84
+
+#define QSPI_XIP_SCKDIV_8           3UL
+#define QSPI_XIP_FORCE_EN           BIT(0)
+#define QSPI_XIP_FORCE_WP           BIT(1)
+#define QSPI_XIP_CR_MODE_MASTER     BIT(0)
+#define QSPI_XIP_CR_CSI_OFF         BIT(3)
+#define QSPI_XIP_CR_CSOE_ENABLE     BIT(4)
+#define QSPI_XIP_FCTRL_FLASH_ENABLE BIT(0)
+#define QSPI_XIP_FCTRL_BURST_ENABLE BIT(3)
+#define QSPI_XIP_FFMT_CMD_ENABLE    BIT(0)
+#define QSPI_XIP_FFMT_ADDR_LEN_3B   (3UL << 1)
+#define QSPI_XIP_FFMT_CMD_CODE(cmd) ((uint32_t)(cmd) << 16)
+
+#define FLASH_CMD_READ              0x03U
 
 /* ========================================================================
  * 镜像头格式（64 字节，兼容 A/B 双分区）
@@ -106,6 +151,7 @@ _Static_assert(sizeof(image_header_t) == IMAGE_HDR_SIZE, "image_header_t size mi
 
 #define PARTITION_TABLE_MAGIC   0x5054424CUL    /* "PTBL" */
 #define PARTITION_TABLE_ADDR    FLASH_XIP_BASE  /* Flash 起始 1KB 放分区表 */
+#define PARTITION_TABLE_SIZE    1024UL
 
 /* Flash 分区布局（2MB 总量）：
  *   0x20000000 ~ 0x200003FF : 分区表（1KB）
@@ -115,6 +161,9 @@ _Static_assert(sizeof(image_header_t) == IMAGE_HDR_SIZE, "image_header_t size mi
 #define SLOT_A_OFFSET           0x00000400UL
 #define SLOT_B_OFFSET           0x00100000UL
 #define SLOT_MAX_SIZE           0x000FFC00UL    /* ≈1MB - 1KB */
+#define BOOTLOADER_SLOT_A_OFFSET    SLOT_A_OFFSET
+#define BOOTLOADER_SLOT_B_OFFSET    SLOT_B_OFFSET
+#define BOOTLOADER_SLOT_MAX_SIZE    SLOT_MAX_SIZE
 
 typedef struct {
     uint32_t magic;             /* PARTITION_TABLE_MAGIC */
@@ -157,7 +206,11 @@ typedef struct {
  * 量产固化时将 BOOTROM_MENU_TIMEOUT_CYCLES 设为 0 即可完全禁用，
  * 从而消除启动延迟（Shell 代码仍在 ROM 中但不会被执行）。
  */
+#if BOOTROM_ENABLE_SHELL
 #define BOOTROM_MENU_TIMEOUT_CYCLES  0x01000000UL   /* 等待窗口（约 1~2 秒 @~26MHz） */
+#else
+#define BOOTROM_MENU_TIMEOUT_CYCLES  0UL
+#endif
 #define BOOTROM_MENU_KEY             ' '            /* 空格键触发 Shell */
 
 /* ========================================================================
@@ -212,6 +265,7 @@ typedef struct {
 #define BOOTROM_ERR_BAD_ENTRY   5       /* 入口地址不合法 */
 #define BOOTROM_ERR_UART_TIMEOUT 6      /* UART 下载超时 */
 #define BOOTROM_ERR_PARTITION   7       /* 分区表损坏 */
+#define BOOTROM_ERR_BAD_ADDR    8       /* 加载/入口地址不在白名单内 */
 
 /* ========================================================================
  * 函数声明
@@ -239,5 +293,6 @@ void bootrom_uart_send(const uint8_t *data, uint32_t len);
 int  bootrom_uart_recv(uint8_t *buf, uint32_t len, uint32_t timeout_cycles);
 
 void bootrom_hold_core0_reset(void);
+void bootrom_qspi_init(void);
 
 #endif /* BOOTROM_H */

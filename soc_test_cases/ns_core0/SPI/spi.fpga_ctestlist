@@ -6,3 +6,4 @@ SPI_qspi3_spi_sdcard_fatfs
 SPI_qspi3_spi_flash_fatfs
 SPI_qspi1_spi_sdcard_fatfs
 SPI_qspi1_spi_flash_fatfs
+SPI_UTB_mac_phy_loopback

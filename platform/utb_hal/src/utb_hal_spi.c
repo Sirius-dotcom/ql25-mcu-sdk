@@ -60,29 +60,19 @@ static uint32_t utb_hal_spi_clock_div_to_reg(uint32_t div)
     }
 }
 
-utb_hal_spi_handle_t *utb_hal_spi_open(const utb_hal_spi_cfg_t *cfg)
+static int utb_hal_spi_configure(utb_hal_spi_handle_t *handle,
+                                 utb_hal_spi_priv_t *priv,
+                                 const utb_hal_spi_cfg_t *cfg)
 {
-    utb_hal_spi_handle_t *handle;
-    utb_hal_spi_priv_t *priv;
     QSPI_InitTypeDef init_cfg = {0};
 
-    if (cfg == NULL) {
-        return NULL;
-    }
-
-    priv = (utb_hal_spi_priv_t *)UTB_MALLOC(sizeof(*priv));
-    handle = (utb_hal_spi_handle_t *)UTB_MALLOC(sizeof(*handle));
-    if ((priv == NULL) || (handle == NULL)) {
-        UTB_FREE(priv);
-        UTB_FREE(handle);
-        return NULL;
+    if ((handle == NULL) || (priv == NULL) || (cfg == NULL)) {
+        return UTB_ERR_PARAM;
     }
 
     priv->inst = utb_hal_spi_bus_to_inst(cfg->bus);
     if (priv->inst == NULL) {
-        UTB_FREE(priv);
-        UTB_FREE(handle);
-        return NULL;
+        return UTB_ERR_PARAM;
     }
 
     utb_hal_spi_enable_bus(cfg->bus);
@@ -103,7 +93,46 @@ utb_hal_spi_handle_t *utb_hal_spi_open(const utb_hal_spi_cfg_t *cfg)
     QSPI_RxFifoEnable(priv->inst, ENABLE);
 
     handle->private = priv;
+    return UTB_OK;
+}
+
+utb_hal_spi_handle_t *utb_hal_spi_open(const utb_hal_spi_cfg_t *cfg)
+{
+    utb_hal_spi_handle_t *handle;
+    utb_hal_spi_priv_t *priv;
+    int ret;
+
+    if (cfg == NULL) {
+        return NULL;
+    }
+
+    priv = (utb_hal_spi_priv_t *)UTB_MALLOC(sizeof(*priv));
+    handle = (utb_hal_spi_handle_t *)UTB_MALLOC(sizeof(*handle));
+    if ((priv == NULL) || (handle == NULL)) {
+        UTB_FREE(priv);
+        UTB_FREE(handle);
+        return NULL;
+    }
+
+    ret = utb_hal_spi_configure(handle, priv, cfg);
+    if (ret != UTB_OK) {
+        UTB_FREE(priv);
+        UTB_FREE(handle);
+        return NULL;
+    }
+
     return handle;
+}
+
+int utb_hal_spi_open_static(utb_hal_spi_handle_t *handle,
+                            utb_hal_spi_static_storage_t *storage,
+                            const utb_hal_spi_cfg_t *cfg)
+{
+    if ((handle == NULL) || (storage == NULL)) {
+        return UTB_ERR_PARAM;
+    }
+
+    return utb_hal_spi_configure(handle, (utb_hal_spi_priv_t *)storage, cfg);
 }
 
 void utb_hal_spi_close(utb_hal_spi_handle_t *handle)
