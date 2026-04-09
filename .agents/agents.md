@@ -37,6 +37,9 @@ Start here:
 - management-plane implementation focus → `utb-management-repo-map`
 - bringup / development steps → `utb-develop-workflow`
 - bug triage / debugging sequence → `utb-debug-workflow`
+- ECLIC interrupt / ISR design / exception handling → `utb-interrupt-exception`
+- testing strategy / validation checklist / regression → `utb-testing-validation`
+- step-by-step driver/HAL implementation template → `utb-driver-implementation`
 
 When details are not in this file, look up the skill before inferring architecture.
 
