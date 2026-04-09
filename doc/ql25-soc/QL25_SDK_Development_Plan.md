@@ -258,12 +258,14 @@ ql25-mcu-sdk/
     ├── baremetal/
     │   └── ql25_amp_hello/                    # Phase 2 验证：双核各自打印 hartid + bring-up stage
     └── freertos/
-        └── ql25_amp_demo/                     # Phase 5 联调工程（主核管理面 + 从核转发面）
-            ├── master_main.c                  # 主核入口（SOC=ns_core1 构建）
-            ├── slave_main.c                   # 从核入口（SOC=ns_core0 构建）
-            ├── FreeRTOSConfig_master.h
-            ├── FreeRTOSConfig_slave.h
-            └── Makefile
+        ├── ql25_amp_master/                   # 【已实现】主核管理面（SOC=ns_core1 构建）
+        │   ├── main.c                         # 3 任务：IPC 服务 + 心跳/恢复 + 管理面
+        │   ├── FreeRTOSConfig.h               # 动态分配、12KB heap、软件定时器
+        │   └── Makefile                       # 含 OSAL + IPC
+        └── ql25_amp_slave/                    # 【已实现】从核数据面（SOC=ns_core0 构建）
+            ├── main.c                         # 3 任务：IPC 服务 + 心跳/快照 + 数据面(占位)
+            ├── FreeRTOSConfig.h               # 纯静态分配、零堆、激进裁剪
+            └── Makefile                       # HEAPSZ=0、-Os、不含 OSAL
 ```
 
 **层次与目录对应速查表：**
@@ -275,8 +277,8 @@ ql25-mcu-sdk/
 | L3 OSAL | `platform/osal/` | FreeRTOS 隔离，与 HAL 不同维度 |
 | L4 共享基础服务 | `platform/ipc/` `platform/storage/` `platform/sysf/` | 不与业务混写；IPC ring 单 producer |
 | L5 平台服务接口 | `platform/api/include/` | 对上统一契约，屏蔽底层实现细节 |
-| L6 业务承载层 | `application/freertos/ql25_amp_demo/` | 主核管理面 / 从核快路径，只调 L5 接口 |
-| L7 对外接口层 | `master_main.c` 中 USART 接收框架 + `slave_main.c` 中 QSPI 数据入口 | 外部 MCU 接入边界，只做路由分发 |
+| L6 业务承载层 | `application/freertos/ql25_amp_master/` + `ql25_amp_slave/` | 独立双 app 目录，主核管理面 / 从核快路径 |
+| L7 对外接口层 | 主核 `main.c` 中 USART 接收框架 + 从核 `main.c` 中数据面入口 | 外部 MCU 接入边界，只做路由分发 |
 
 ---
 
@@ -746,16 +748,16 @@ void mac_tx_done_irq_enable(void);
 
 ### 12.1 构建方式
 
-AMP 工程需要分别用两个 SOC 构建：
+AMP 工程采用**独立 app 目录**方案（详见附录三），分别构建：
 
 ```bash
-# 主核 ELF
-make SOC=ns_core1 BOARD=fpga_eval CORE=core1_n300f DOWNLOAD=flashxip0 \
-     APP=application/freertos/ql25_amp_demo TARGET=master
+# 从核 ELF（整个 bin 加载到 ILM，<= 48KB）
+make SOC=ns_core0 BOARD=fpga_eval DOWNLOAD=ilm \
+     PROGRAM=application/freertos/ql25_amp_slave clean all
 
-# 从核 ELF
-make SOC=ns_core0 BOARD=fpga_eval CORE=core0_n300f DOWNLOAD=flashxip0 \
-     APP=application/freertos/ql25_amp_demo TARGET=slave
+# 主核 ELF（FPGA bringup 用 ilm，目标模式用 flashxip0）
+make SOC=ns_core1 BOARD=fpga_eval DOWNLOAD=ilm \
+     PROGRAM=application/freertos/ql25_amp_master clean all
 ```
 
 ### 12.2 从核转发面任务结构
@@ -1058,3 +1060,175 @@ make SOC=ns_core0 BOARD=fpga_eval DOWNLOAD=ilm RTOS=FreeRTOS \
 make SOC=ns_core1 BOARD=fpga_eval DOWNLOAD=ilm RTOS=FreeRTOS \
      APP=application/freertos/osal_demo
 Demo 会依次验证 task、queue（50 条消息收发）、mutex（两任务竞争 1000 次递增）、semaphore（30 次同步）、timer（50ms 周期回调计数）、stack watermark，最终打印 PASS/FAIL 汇总。
+
+---
+
+## 附录三：AMP 双核应用工程与 platform 条件编译（已实现）
+
+### 1. 架构决策
+
+基于以下硬约束，AMP 联调工程采用**独立 app 目录 + platform 条件编译**方案：
+
+| 约束 | 影响 |
+|---|---|
+| 从核整个 bin 加载到 ILM，**<= 48KB** | 极端裁剪，禁用堆、printf、OSAL |
+| 主从核职责天然不同 | 单 app 双构建会导致大量 `#if` 分支，维护成本高 |
+| 启动链路不同 | 主核 9 步 bring-up，从核等待释放后 init |
+| FreeRTOS 配置差异大 | 从核纯静态分配 vs 主核动态分配 |
+
+**方案选择理由：**
+
+- **(B) 两个独立 app 目录** 而非单 app 双构建 — 主从核镜像是两个独立交付物，生命周期不同，大小审计独立
+- **platform 按 `$(SOC)` 条件编译** 而非物理拆目录 — 模块边界尚未稳定，先保持简单；后期如某模块长期成双分支再考虑物理拆
+
+### 2. 文件清单
+
+```
+application/freertos/
+├── ql25_amp_master/                    # 主核管理面应用
+│   ├── Makefile                        # SOC=ns_core1, RTOS=FreeRTOS, 动态分配
+│   ├── FreeRTOSConfig.h                # 12KB heap, 软件定时器, 宽松配置
+│   └── main.c                          # 3 任务：IPC 服务 + 心跳/恢复 + 管理面
+│
+└── ql25_amp_slave/                     # 从核数据面应用
+    ├── Makefile                        # SOC=ns_core0, HEAPSZ=0, -Os, 不含 OSAL
+    ├── FreeRTOSConfig.h                # 纯静态分配, 禁堆/禁定时器, 激进裁剪
+    └── main.c                          # 3 任务：IPC 服务 + 心跳/快照 + 数据面(占位)
+
+platform/ipc/
+└── build.mk                            # 按 SOC 条件编译，ns_core0 排除 recovery.c
+```
+
+### 3. 构建命令
+
+```bash
+# 从核（整个 bin 加载到 ILM，<= 48KB）
+make SOC=ns_core0 BOARD=fpga_eval DOWNLOAD=ilm \
+     PROGRAM=application/freertos/ql25_amp_slave clean all
+
+# 主核（FPGA bringup 用 ilm，目标模式用 flashxip0）
+make SOC=ns_core1 BOARD=fpga_eval DOWNLOAD=ilm \
+     PROGRAM=application/freertos/ql25_amp_master clean all
+```
+
+### 4. platform/ipc/build.mk 条件编译
+
+从原来的 `C_SRCDIRS`（整个目录）改为 `C_SRCS`（逐文件列举），按 `$(SOC)` 排除从核不需要的模块：
+
+```makefile
+# 公共源文件（双核共用）
+C_SRCS += $(PLATFORM_IPC_DIR)src/utb_ipc_ring.c
+C_SRCS += $(PLATFORM_IPC_DIR)src/utb_ipc_notify.c
+C_SRCS += $(PLATFORM_IPC_DIR)src/utb_ipc_init.c
+C_SRCS += $(PLATFORM_IPC_DIR)src/utb_ipc_event.c
+C_SRCS += $(PLATFORM_IPC_DIR)src/utb_ipc_snapshot.c
+C_SRCS += $(PLATFORM_IPC_DIR)src/utb_ipc_stats.c
+
+# 恢复模块：仅主核编译
+ifneq ($(SOC),ns_core0)
+C_SRCS += $(PLATFORM_IPC_DIR)src/utb_ipc_recovery.c
+endif
+```
+
+IPC 层按核裁剪明细：
+
+| 文件 | ns_core0（从核） | ns_core1（主核） | 说明 |
+|---|---|---|---|
+| `utb_ipc_ring.c` | ✓ | ✓ | SPSC ring 底层（双核共用） |
+| `utb_ipc_notify.c` | ✓ | ✓ | IDU 门铃（双核共用） |
+| `utb_ipc_init.c` | ✓ | ✓ | 初始化 + ctrl 通道 + 同步请求 |
+| `utb_ipc_event.c` | ✓（producer） | ✓（consumer） | 事件 ring |
+| `utb_ipc_snapshot.c` | ✓（writer） | ✓（reader） | seqlock 快照 |
+| `utb_ipc_stats.c` | ✓ | ✓ | 诊断计数器 |
+| `utb_ipc_recovery.c` | **✗** | ✓ | 重启检测 + 恢复（主核专用） |
+
+### 5. 任务架构
+
+```
+从核 (SOC=ns_core0, DOWNLOAD=ilm)         主核 (SOC=ns_core1)
+┌──────────────────────┐                   ┌──────────────────────┐
+│ task_ipc_service (4) │◄── ctrl_req ────  │ task_management  (3) │
+│   命令接收/响应       │─── ctrl_rsp ───► │   同步请求/快照读取    │
+│                      │                   │                      │
+│ task_heartbeat   (3) │─── event ──────► │ task_ipc_service (5) │
+│   心跳 + 快照写       │                   │   事件分派            │
+│                      │                   │                      │
+│ task_data_plane  (2) │   seqlock snap    │ task_heartbeat   (4) │
+│   转发（占位）        │═════════════════►│   存活检测 + 恢复      │
+└──────────────────────┘                   └──────────────────────┘
+```
+
+### 6. 从核 FreeRTOS 配置要点（48KB ILM 约束）
+
+| 配置项 | 从核值 | 主核值 | 说明 |
+|---|---|---|---|
+| `configSUPPORT_STATIC_ALLOCATION` | **1** | 0 | 从核全静态 |
+| `configSUPPORT_DYNAMIC_ALLOCATION` | **0** | 1 | 从核禁堆 |
+| `configTOTAL_HEAP_SIZE` | **0** | 12KB | 从核零堆 |
+| `configUSE_TIMERS` | **0** | 1 | 省一个 timer task TCB+栈 |
+| `configMINIMAL_STACK_SIZE` | **128** words | 256 words | 从核 idle 栈 512B |
+| `configMAX_PRIORITIES` | **5** | 8 | 从核够用即可 |
+| `configUSE_MUTEXES` | **0** | 1 | 从核不需要 |
+| `configUSE_COUNTING_SEMAPHORES` | **0** | 1 | 从核不需要 |
+| `HEAPSZ`（链接器） | **0** | 2K(默认) | C 运行时堆 |
+| `STACKSZ`（链接器） | **1K** | 2K(默认) | C 运行时栈 |
+| OSAL | **不包含** | 包含 | OSAL 使用动态分配，与从核冲突 |
+| printf | **不使用** | 使用 | 从核省 ~8-12KB .text |
+
+### 7. 从核静态内存预算
+
+| 项目 | 大小 | 说明 |
+|---|---|---|
+| FreeRTOS 内核 .text | ~8-10 KB | 裁剪后（禁定时器/禁动态分配） |
+| IPC 库 .text | ~3-4 KB | ring + notify + init + event + snapshot + stats |
+| 应用 .text | ~2 KB | main.c + 命令分派 |
+| FreeRTOS .data/.bss | ~0.5 KB | 内核全局状态 |
+| 3 任务 TCB + 栈 | ~2.1 KB | IPC(768B) + HB(512B) + DP(512B) + 3×TCB(~100B) |
+| Idle 任务 TCB + 栈 | ~0.6 KB | 128 words + TCB |
+| IPC .data/.bss | ~0.1 KB | g_ipc_diag + 局部 static |
+| 应用 .data/.bss | ~0.2 KB | s_dp_status + s_version + s_uptime_sec |
+| C 运行时栈 | 1 KB | `STACKSZ=1K` |
+| **合计估算** | **~18-21 KB** | **占 48KB 的 38-44%，余量充足** |
+
+> 注：以上为估算值，实际以构建后 `.map` 文件为准。bringup 阶段目标控制在 80%（<= 38KB）以内。
+
+### 8. 关键设计点
+
+**门铃唤醒机制：**
+- ISR 回调 `ipc_doorbell_cb()` 使用 `vTaskNotifyGiveFromISR()` 唤醒 IPC 服务 task
+- IPC 服务 task 用 `ulTaskNotifyTake(pdTRUE, timeout)` 阻塞等待，50ms 兜底超时
+- 这是 FreeRTOS 最轻量的 ISR→task 唤醒机制（零分配、零队列开销）
+
+**门铃回调二次注册：**
+- `utb_ipc_init()` 内部调用 `utb_ipc_notify_init(空回调)` 完成 IDU 硬件初始化
+- `main()` 中在 `utb_ipc_init()` 之后二次调用 `utb_ipc_notify_init(ipc_doorbell_cb)` 注册真实回调
+- 安全性：`utb_ipc_notify_init()` 仅注册函数指针，不分配资源，二次调用无副作用
+
+**从核不含 OSAL 的原因：**
+- `osal_freertos.c` 内部使用 `xTaskCreate()`、`xQueueCreate()` 等动态分配 API
+- 从核 `configSUPPORT_DYNAMIC_ALLOCATION = 0`，编译 OSAL 会报错
+- 从核直接调用 FreeRTOS 静态 API（`xTaskCreateStatic` 等）+ IPC API
+
+**事件上报不设独立 task：**
+- 从核事件上报（`utb_ipc_event_send()`）和快照写入作为函数调用嵌入现有任务
+- 心跳 task 负责周期性快照更新，数据面 task 在异常时发送事件
+- 省一个 TCB + 栈（~640B），在 48KB 约束下有意义
+
+**主核 ctrl_rsp_ring 的双消费者问题：**
+- `utb_ipc_ctrl_request_sync()` 在管理 task 中轮询 ctrl_rsp_ring 匹配 txn_id
+- IPC 服务 task 也 drain ctrl_rsp_ring 清除超时残留响应
+- 两者不会同时访问（sync API 在管理 task 中阻塞轮询期间，IPC task 等待门铃）
+- 遗留响应被 IPC 服务 task 丢弃，不做业务处理
+
+### 9. 后续演进路径
+
+```
+当前（bringup 阶段）：
+  独立 app + platform build.mk 条件编译
+  ↓
+中期（模块稳定后）：
+  如某模块双分支代码超过 50%，考虑物理拆 master/ slave/ common
+  ↓
+长期（量产阶段）：
+  完整 CI 构建双 image + 联合烧录脚本 + 版本绑定
+```
