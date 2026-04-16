@@ -34,6 +34,43 @@
 #define BOOTROM_LOG(msg)    ((void)0)
 #endif
 
+#define BOOTROM_FLASH_CHUNK_SIZE   256U
+
+typedef enum {
+    DISABLE = 0,
+    ENABLE = 1
+} ControlStatus;
+
+#define BOOTROM_FLASH_SECTOR_SIZE       4096UL
+#define BOOTROM_FLASH_PAGE_SIZE         256UL
+#define BOOTROM_FLASH_CMD_WRITE_ENABLE  0x06U
+#define BOOTROM_FLASH_CMD_PAGE_PROGRAM  0x02U
+#define BOOTROM_FLASH_CMD_SECTOR_ERASE  0x20U
+#define BOOTROM_FLASH_CMD_READ_STATUS   0x05U
+#define BOOTROM_FLASH_SR_WIP            0x01U
+#define BOOTROM_FLASH_BUSY_TIMEOUT      0x02000000UL
+#define BOOTROM_QSPI_TX_FIFO            0U
+#define BOOTROM_QSPI_RX_FIFO            1U
+#define BOOTROM_QSPI_TXDATA_OFS         0x48UL
+#define BOOTROM_QSPI_RXDATA_OFS         0x4CUL
+#define BOOTROM_QSPI_STATUS_OFS         0x7CUL
+#define BOOTROM_QSPI_CSMODE_AUTO        0U
+#define BOOTROM_QSPI_CSMODE_HOLD        2U
+#define BOOTROM_QSPI_FMT_PROTO_SINGLE   0U
+#define BOOTROM_QSPI_FMT_ENDIAN_MSB     0U
+#define BOOTROM_QSPI_FMT_DIR_RX         0U
+#define BOOTROM_QSPI_FMT_LEN_8B         (8UL << 16)
+#define BOOTROM_QSPI_FFMT_ADDR_LEN_3B   (3UL << 1)
+#define BOOTROM_QSPI_FCTRL_FLASH_BURST_ENABLE BIT(3)
+#define BOOTROM_QSPI_FCTRL_FLASHW_ENABLE BIT(2)
+#define BOOTROM_QSPI_CR_SSM_SOFT        BIT(5)
+#define BOOTROM_QSPI_CR_RECEIVE_DATA_ENABLE BIT(13)
+#define BOOTROM_QSPI_CR_RX_FIFO_CLR     BIT(26)
+#define BOOTROM_QSPI_CR_TX_FIFO_CLR     BIT(27)
+#define BOOTROM_QSPI_STATUS_BUSY        BIT(0)
+#define BOOTROM_QSPI_STATUS_TX_FULL     BIT(4)
+#define BOOTROM_QSPI_STATUS_RX_EMPTY    BIT(5)
+
 /* ========================================================================
  * CRC32（Nibble 查表法，表仅 64 字节，省 ROM 空间）
  * ======================================================================== */
@@ -44,6 +81,26 @@ static const uint32_t crc32_nibble_table[16] = {
     0xEDB88320, 0xF00F9344, 0xD6D6A3E8, 0xCB61B38C,
     0x9B64C2B0, 0x86D3D2D4, 0xA00AE278, 0xBDBDF21C
 };
+
+static int bootrom_load_and_verify(uint32_t flash_offset);
+
+void qspi_xip0_clk_en(ControlStatus status)
+{
+    if (status == ENABLE) {
+        REG_SET(MISC_BASE, SUBM_CLK_CTRL0_OFS, BIT(SUBM_QSPI_XIP0_BIT));
+    } else {
+        REG_CLR(MISC_BASE, SUBM_CLK_CTRL0_OFS, BIT(SUBM_QSPI_XIP0_BIT));
+    }
+}
+
+void qspi_xip0_set_rst(ControlStatus status)
+{
+    if (status == ENABLE) {
+        REG_SET(MISC_BASE, SUBM_RESET_CTRL0_OFS, BIT(SUBM_QSPI_XIP0_BIT));
+    } else {
+        REG_CLR(MISC_BASE, SUBM_RESET_CTRL0_OFS, BIT(SUBM_QSPI_XIP0_BIT));
+    }
+}
 
 uint32_t bootrom_crc32(const void *data, uint32_t len)
 {
@@ -78,24 +135,28 @@ void bootrom_release_core0(void)
  * ======================================================================== */
 
 /*
- * TODO: USART 寄存器布局需要根据 QL25 实际硬件确认。
- *       以下使用 SiFive 风格 UART 寄存器布局作为参考模板。
- *       如果 QL25 的 USART 寄存器不同，需要替换此处实现。
+ * 说明：
+ *   - UART0 为独占调试串口，BootROM 阶段不额外做 IOMUX pinmux 配置
+ *   - 但仍需打开 IOMUX 模块时钟，保持与 SDK 早期 bring-up 路径一致
+ *   - 当前寄存器偏移仍沿用现有 QL25 USART 定义；若后续硬件寄存器模型变更，
+ *     需要同步调整下列 TX/RX/DIV 相关寄存器访问
  */
 
 void bootrom_uart_init(uint32_t baudrate)
 {
     /*
      * 最小 USART0 初始化：
-     * 1. 设置波特率分频
-     * 2. 使能 TX/RX
-     * 3. 8N1 格式
-     *
-     * TODO: 需要知道系统时钟频率来计算分频值
-     *       div = (sys_clk / baudrate) - 1
+     * 1. 打开 USART0 模块时钟
+     * 2. 打开 IOMUX 模块时钟（UART0 管脚独占，不额外切 pinmux）
+     * 3. 设置波特率分频
+     * 4. 使能 TX/RX
      */
-    uint32_t sys_clk = 8000000UL;   /* TODO: 实际系统时钟频率 */
+    uint32_t sys_clk = BOOTROM_CPU_CLOCK_HZ;
     uint32_t div = (sys_clk / baudrate) - 1;
+
+    REG_SET(MISC_BASE, SUBM_CLK_CTRL0_OFS, SUBM_CLK_CTRL0_USART0);
+    REG_SET(MISC_BASE, SUBM_CLK_CTRL1_OFS, SUBM_CLK_CTRL1_IOMUX);
+    FENCE();
 
     REG_WRITE(USART0_BASE, USART_DIV_OFS, div);
     REG_WRITE(USART0_BASE, USART_TXCTRL_OFS, 0x1);    /* 使能 TX */
@@ -199,6 +260,202 @@ static int bootrom_is_valid_flash_offset(uint32_t offset, uint32_t len)
     return end <= FLASH_TOTAL_SIZE;
 }
 
+static int bootrom_is_valid_bootloader_store_offset(uint32_t offset, uint32_t len)
+{
+    return bootrom_range_fits(BOOTLOADER_STORE_A_OFFSET, BOOTLOADER_STORE_SIZE, offset, len) ||
+           bootrom_range_fits(BOOTLOADER_STORE_B_OFFSET, BOOTLOADER_STORE_SIZE, offset, len);
+}
+
+static uint8_t bootrom_flash_spi_xfer(uint8_t tx)
+{
+    while ((REG_READ(QSPI_XIP0_BASE, BOOTROM_QSPI_STATUS_OFS) & BOOTROM_QSPI_STATUS_TX_FULL) != 0U) {
+    }
+    REG_WRITE(QSPI_XIP0_BASE, BOOTROM_QSPI_TXDATA_OFS, tx);
+    while ((REG_READ(QSPI_XIP0_BASE, BOOTROM_QSPI_STATUS_OFS) & BOOTROM_QSPI_STATUS_BUSY) != 0U) {
+    }
+    while ((REG_READ(QSPI_XIP0_BASE, BOOTROM_QSPI_STATUS_OFS) & BOOTROM_QSPI_STATUS_RX_EMPTY) != 0U) {
+    }
+    return (uint8_t)REG_READ(QSPI_XIP0_BASE, BOOTROM_QSPI_RXDATA_OFS);
+}
+
+static void bootrom_flash_clear_fifo(uint32_t channel)
+{
+    if (channel == BOOTROM_QSPI_TX_FIFO) {
+        REG_SET(QSPI_XIP0_BASE, QSPI_XIP_CR_OFS, BOOTROM_QSPI_CR_TX_FIFO_CLR);
+    } else {
+        REG_SET(QSPI_XIP0_BASE, QSPI_XIP_CR_OFS, BOOTROM_QSPI_CR_RX_FIFO_CLR);
+    }
+}
+
+static void bootrom_flash_select(void)
+{
+    bootrom_flash_clear_fifo(BOOTROM_QSPI_TX_FIFO);
+    bootrom_flash_clear_fifo(BOOTROM_QSPI_RX_FIFO);
+    REG_CLR(QSPI_XIP0_BASE, QSPI_XIP_CR_OFS, QSPI_XIP_CR_CSI_OFF);
+}
+
+static void bootrom_flash_deselect(void)
+{
+    REG_SET(QSPI_XIP0_BASE, QSPI_XIP_CR_OFS, QSPI_XIP_CR_CSI_OFF);
+}
+
+static void bootrom_flash_send_addr24(uint32_t addr)
+{
+    bootrom_flash_spi_xfer((uint8_t)((addr >> 16) & 0xFFU));
+    bootrom_flash_spi_xfer((uint8_t)((addr >> 8) & 0xFFU));
+    bootrom_flash_spi_xfer((uint8_t)(addr & 0xFFU));
+}
+
+static void bootrom_flash_enter_normal_mode(void)
+{
+    qspi_xip0_clk_en(ENABLE);
+    qspi_xip0_set_rst(ENABLE);
+    qspi_xip0_set_rst(DISABLE);
+
+    REG_WRITE(QSPI_XIP0_BASE, QSPI_XIP_SCKDIV_OFS, QSPI_XIP_SCKDIV_8);
+    REG_WRITE(QSPI_XIP0_BASE, QSPI_XIP_SCKMODE_OFS, 0U);
+    REG_WRITE(QSPI_XIP0_BASE, QSPI_XIP_CSMODE_OFS, BOOTROM_QSPI_CSMODE_HOLD);
+    REG_WRITE(QSPI_XIP0_BASE, QSPI_XIP_FORCE_OFS, QSPI_XIP_FORCE_EN | QSPI_XIP_FORCE_WP);
+    REG_WRITE(QSPI_XIP0_BASE, QSPI_XIP_FMT_OFS,
+              BOOTROM_QSPI_FMT_PROTO_SINGLE |
+              BOOTROM_QSPI_FMT_ENDIAN_MSB |
+              BOOTROM_QSPI_FMT_DIR_RX |
+              BOOTROM_QSPI_FMT_LEN_8B);
+    REG_WRITE(QSPI_XIP0_BASE, QSPI_XIP_FCTRL_OFS, 0U);
+    REG_SET(QSPI_XIP0_BASE, QSPI_XIP_CR_OFS,
+            QSPI_XIP_CR_MODE_MASTER |
+            BOOTROM_QSPI_CR_SSM_SOFT |
+            BOOTROM_QSPI_CR_RECEIVE_DATA_ENABLE);
+    REG_CLR(QSPI_XIP0_BASE, QSPI_XIP_CR_OFS, QSPI_XIP_CR_CSI_OFF);
+    REG_CLR(QSPI_XIP0_BASE, QSPI_XIP_FCTRL_OFS, BOOTROM_QSPI_FCTRL_FLASHW_ENABLE);
+    bootrom_flash_clear_fifo(BOOTROM_QSPI_TX_FIFO);
+    bootrom_flash_clear_fifo(BOOTROM_QSPI_RX_FIFO);
+}
+
+static void bootrom_flash_restore_xip_read(void)
+{
+    REG32(QSPI_XIP0_BASE + QSPI_XIP_SCKDIV_OFS) = QSPI_XIP_SCKDIV_8;
+    REG32(QSPI_XIP0_BASE + QSPI_XIP_SCKMODE_OFS) = 0U;
+    REG32(QSPI_XIP0_BASE + QSPI_XIP_FORCE_OFS) = QSPI_XIP_FORCE_EN | QSPI_XIP_FORCE_WP;
+    REG32(QSPI_XIP0_BASE + QSPI_XIP_CSMODE_OFS) = BOOTROM_QSPI_CSMODE_AUTO;
+    REG32(QSPI_XIP0_BASE + QSPI_XIP_FMT_OFS) = 0U;
+    REG32(QSPI_XIP0_BASE + QSPI_XIP_SDR_SCKSAMPLE_OFS) = 0U;
+    REG32(QSPI_XIP0_BASE + QSPI_XIP_CR_OFS) =
+        QSPI_XIP_CR_MODE_MASTER | QSPI_XIP_CR_CSOE_ENABLE | QSPI_XIP_CR_CSI_OFF;
+    REG32(QSPI_XIP0_BASE + QSPI_XIP_FFMT_OFS) =
+        QSPI_XIP_FFMT_CMD_ENABLE |
+        BOOTROM_QSPI_FFMT_ADDR_LEN_3B |
+        QSPI_XIP_FFMT_CMD_CODE(FLASH_CMD_READ);
+    REG32(QSPI_XIP0_BASE + QSPI_XIP_FFMT1_OFS) = 0U;
+    REG32(QSPI_XIP0_BASE + QSPI_XIP_FCTRL_OFS) =
+        QSPI_XIP_FCTRL_FLASH_ENABLE | BOOTROM_QSPI_FCTRL_FLASH_BURST_ENABLE;
+    FENCE();
+    FENCE_I();
+}
+
+static int bootrom_flash_write_enable(void)
+{
+    bootrom_flash_select();
+    bootrom_flash_spi_xfer(BOOTROM_FLASH_CMD_WRITE_ENABLE);
+    bootrom_flash_deselect();
+    return BOOTROM_OK;
+}
+
+static int bootrom_flash_wait_ready(void)
+{
+    uint32_t timeout = BOOTROM_FLASH_BUSY_TIMEOUT;
+
+    while (timeout > 0U) {
+        uint8_t status;
+
+        bootrom_flash_select();
+        bootrom_flash_spi_xfer(BOOTROM_FLASH_CMD_READ_STATUS);
+        status = bootrom_flash_spi_xfer(0xFFU);
+        bootrom_flash_deselect();
+
+        if ((status & BOOTROM_FLASH_SR_WIP) == 0U) {
+            return BOOTROM_OK;
+        }
+        timeout--;
+    }
+
+    return BOOTROM_ERR_UART_TIMEOUT;
+}
+
+static int bootrom_flash_prog_range(uint32_t flash_addr, const uint8_t *src, uint32_t size)
+{
+    uint32_t offset = 0U;
+
+    if ((src == (const uint8_t *)0) || !bootrom_is_valid_flash_offset(flash_addr - FLASH_XIP_BASE, size)) {
+        return BOOTROM_ERR_BAD_ADDR;
+    }
+
+    bootrom_flash_enter_normal_mode();
+
+    while (offset < size) {
+        uint32_t cur_addr = flash_addr + offset;
+        uint32_t page_off = cur_addr & (BOOTROM_FLASH_PAGE_SIZE - 1U);
+        uint32_t remain = size - offset;
+        uint32_t chunk = BOOTROM_FLASH_PAGE_SIZE - page_off;
+        uint32_t i;
+
+        if (chunk > remain) {
+            chunk = remain;
+        }
+
+        if (bootrom_flash_write_enable() != BOOTROM_OK) {
+            bootrom_flash_restore_xip_read();
+            return BOOTROM_ERR_BAD_CRC;
+        }
+
+        bootrom_flash_select();
+        bootrom_flash_spi_xfer(BOOTROM_FLASH_CMD_PAGE_PROGRAM);
+        bootrom_flash_send_addr24(cur_addr - FLASH_XIP_BASE);
+        for (i = 0U; i < chunk; i++) {
+            bootrom_flash_spi_xfer(src[offset + i]);
+        }
+        bootrom_flash_deselect();
+
+        if (bootrom_flash_wait_ready() != BOOTROM_OK) {
+            bootrom_flash_restore_xip_read();
+            return BOOTROM_ERR_UART_TIMEOUT;
+        }
+
+        offset += chunk;
+    }
+
+    bootrom_flash_restore_xip_read();
+    return BOOTROM_OK;
+}
+
+static int bootrom_flash_erase_sector(uint32_t flash_addr)
+{
+    if (!bootrom_is_valid_flash_offset(flash_addr - FLASH_XIP_BASE, 1U) ||
+        ((flash_addr & (BOOTROM_FLASH_SECTOR_SIZE - 1U)) != 0U)) {
+        return BOOTROM_ERR_BAD_ADDR;
+    }
+
+    bootrom_flash_enter_normal_mode();
+
+    if (bootrom_flash_write_enable() != BOOTROM_OK) {
+        bootrom_flash_restore_xip_read();
+        return BOOTROM_ERR_BAD_CRC;
+    }
+
+    bootrom_flash_select();
+    bootrom_flash_spi_xfer(BOOTROM_FLASH_CMD_SECTOR_ERASE);
+    bootrom_flash_send_addr24(flash_addr - FLASH_XIP_BASE);
+    bootrom_flash_deselect();
+
+    if (bootrom_flash_wait_ready() != BOOTROM_OK) {
+        bootrom_flash_restore_xip_read();
+        return BOOTROM_ERR_UART_TIMEOUT;
+    }
+
+    bootrom_flash_restore_xip_read();
+    return BOOTROM_OK;
+}
+
 /* ========================================================================
  * 硬件操作：QSPI XIP0 Flash 读取
  * ======================================================================== */
@@ -271,14 +528,14 @@ static int bootrom_validate_partition_table(const partition_table_t *pt)
     if (pt->magic != PARTITION_TABLE_MAGIC) {
         return BOOTROM_ERR_PARTITION;
     }
-    if ((pt->active_slot != SLOT_A) && (pt->active_slot != SLOT_B)) {
+    if ((pt->active_bootloader_store != SLOT_A) && (pt->active_bootloader_store != SLOT_B)) {
         return BOOTROM_ERR_PARTITION;
     }
-    if (!bootrom_is_valid_flash_offset(pt->slot_a_offset, IMAGE_HDR_SIZE) ||
-        !bootrom_is_valid_flash_offset(pt->slot_b_offset, IMAGE_HDR_SIZE) ||
-        !bootrom_is_valid_flash_offset(pt->slot_a_offset, SLOT_MAX_SIZE) ||
-        !bootrom_is_valid_flash_offset(pt->slot_b_offset, SLOT_MAX_SIZE) ||
-        (pt->slot_a_offset == pt->slot_b_offset)) {
+    if (!bootrom_is_valid_flash_offset(pt->bootloader_store_a_offset, IMAGE_HDR_SIZE) ||
+        !bootrom_is_valid_flash_offset(pt->bootloader_store_b_offset, IMAGE_HDR_SIZE) ||
+        !bootrom_is_valid_flash_offset(pt->bootloader_store_a_offset, BOOTLOADER_STORE_SIZE) ||
+        !bootrom_is_valid_flash_offset(pt->bootloader_store_b_offset, BOOTLOADER_STORE_SIZE) ||
+        (pt->bootloader_store_a_offset == pt->bootloader_store_b_offset)) {
         return BOOTROM_ERR_PARTITION;
     }
 
@@ -311,7 +568,7 @@ static int bootrom_validate_header(const image_header_t *hdr)
     if (hdr->hdr_version != IMAGE_HDR_VERSION) {
         return BOOTROM_ERR_BAD_MAGIC;
     }
-    if (hdr->image_size == 0 || hdr->image_size > SLOT_MAX_SIZE) {
+    if (hdr->image_size == 0 || hdr->image_size > BOOTLOADER_STORE_SIZE) {
         return BOOTROM_ERR_TOO_LARGE;
     }
 
@@ -320,6 +577,9 @@ static int bootrom_validate_header(const image_header_t *hdr)
         return BOOTROM_ERR_BAD_ENTRY;
     }
     if ((hdr->boot_mode != BOOT_MODE_ILM) && (hdr->boot_mode != BOOT_MODE_XIP)) {
+        return BOOTROM_ERR_BAD_ENTRY;
+    }
+    if ((hdr->slot_id != SLOT_A) && (hdr->slot_id != SLOT_B)) {
         return BOOTROM_ERR_BAD_ENTRY;
     }
     if (hdr->boot_mode == BOOT_MODE_ILM) {
@@ -331,13 +591,86 @@ static int bootrom_validate_header(const image_header_t *hdr)
     return BOOTROM_OK;
 }
 
+static int bootrom_flash_erase_range(uint32_t flash_addr, uint32_t size)
+{
+    uint32_t start = flash_addr & ~(BOOTROM_FLASH_SECTOR_SIZE - 1U);
+    uint32_t end = flash_addr + size;
+
+    if (end < flash_addr) {
+        return BOOTROM_ERR_BAD_ADDR;
+    }
+
+    end = (end + (BOOTROM_FLASH_SECTOR_SIZE - 1U)) & ~(BOOTROM_FLASH_SECTOR_SIZE - 1U);
+    while (start < end) {
+        if (bootrom_flash_erase_sector(start) != BOOTROM_OK) {
+            return BOOTROM_ERR_BAD_ADDR;
+        }
+        start += BOOTROM_FLASH_SECTOR_SIZE;
+    }
+
+    return BOOTROM_OK;
+}
+
+static int bootrom_flash_program_bootloader_store(const image_header_t *hdr,
+                                                  const uint8_t *payload,
+                                                  uint32_t timeout)
+{
+    image_header_t hdr_copy;
+    uint8_t chunk_buf[BOOTROM_FLASH_CHUNK_SIZE];
+    uint32_t store_offset;
+    uint32_t store_addr;
+    uint32_t image_total;
+    uint32_t offset = 0U;
+
+    if (hdr->slot_id == SLOT_B) {
+        store_offset = BOOTLOADER_STORE_B_OFFSET;
+    } else {
+        store_offset = BOOTLOADER_STORE_A_OFFSET;
+    }
+    store_addr = FLASH_XIP_BASE + store_offset;
+    image_total = IMAGE_HDR_SIZE + hdr->image_size;
+
+    if (!bootrom_is_valid_bootloader_store_offset(store_offset, image_total)) {
+        return BOOTROM_ERR_TOO_LARGE;
+    }
+
+    if (bootrom_flash_erase_range(store_addr, image_total) != BOOTROM_OK) {
+        return BOOTROM_ERR_BAD_CRC;
+    }
+
+    bootrom_copy_bytes(&hdr_copy, hdr, sizeof(hdr_copy));
+    if (bootrom_flash_prog_range(store_addr, (const uint8_t *)&hdr_copy, IMAGE_HDR_SIZE) != BOOTROM_OK) {
+        return BOOTROM_ERR_BAD_CRC;
+    }
+
+    while (offset < hdr->image_size) {
+        uint32_t remain = hdr->image_size - offset;
+        uint32_t chunk = (remain > BOOTROM_FLASH_CHUNK_SIZE) ? BOOTROM_FLASH_CHUNK_SIZE : remain;
+
+        if (payload != (const uint8_t *)0) {
+            bootrom_copy_bytes(chunk_buf, payload + offset, chunk);
+        } else {
+            if (bootrom_uart_recv(chunk_buf, chunk, timeout) < 0) {
+                return BOOTROM_ERR_UART_TIMEOUT;
+            }
+        }
+
+        if (bootrom_flash_prog_range(store_addr + IMAGE_HDR_SIZE + offset, chunk_buf, chunk) != BOOTROM_OK) {
+            return BOOTROM_ERR_BAD_CRC;
+        }
+        offset += chunk;
+    }
+
+    return bootrom_load_and_verify(store_offset);
+}
+
 /* ========================================================================
- * BootLoader 镜像加载与跳转
+ * BootLoader Store 镜像加载与跳转
  * ======================================================================== */
 
 static int bootrom_load_and_verify(uint32_t flash_offset)
 {
-    /* 读取 BootLoader 镜像头 */
+    /* 读取 BootLoader Store 镜像头 */
     const image_header_t *hdr;
     uint32_t payload_offset;
     const void *payload;
@@ -368,7 +701,7 @@ static int bootrom_load_and_verify(uint32_t flash_offset)
         return BOOTROM_ERR_BAD_CRC;
     }
 
-    /* 加载 BootLoader 镜像 */
+    /* 加载 BootLoader Store 镜像 */
     if (hdr->boot_mode == BOOT_MODE_ILM) {
         /* 搬运到目标地址（通常是 Core 0 ILM 或 Core 1 外部 SRAM） */
         uint8_t *dst = (uint8_t *)hdr->load_addr;
@@ -481,9 +814,9 @@ int bootrom_detect_boot_mode(void)
     bootrom_qspi_init();
 
     const image_header_t *hdr_a =
-        (const image_header_t *)bootrom_flash_ptr(BOOTLOADER_SLOT_A_OFFSET);
+        (const image_header_t *)bootrom_flash_ptr(BOOTLOADER_STORE_A_OFFSET);
     const image_header_t *hdr_b =
-        (const image_header_t *)bootrom_flash_ptr(BOOTLOADER_SLOT_B_OFFSET);
+        (const image_header_t *)bootrom_flash_ptr(BOOTLOADER_STORE_B_OFFSET);
 
     if (bootrom_validate_header(hdr_a) == BOOTROM_OK ||
         bootrom_validate_header(hdr_b) == BOOTROM_OK) {
@@ -782,7 +1115,7 @@ static void shell_cmd_mw(int argc, char *argv[])
 }
 
 /* ========================================================================
- * Shell 命令：info — 显示分区表和 BootLoader 镜像信息
+ * Shell 命令：info — 显示分区表和 BootLoader Store 镜像信息
  * ======================================================================== */
 
 static void shell_show_image_info(const char *label, uint32_t flash_offset)
@@ -850,13 +1183,13 @@ static void shell_cmd_info(void)
 
     /* 分区表 */
     const partition_table_t *pt =
-        (const partition_table_t *)bootrom_flash_ptr(0);
+        (const partition_table_t *)bootrom_flash_ptr(PARTITION_TABLE_OFFSET);
 
     bootrom_uart_puts("Partition table: ");
     if (pt->magic == PARTITION_TABLE_MAGIC) {
         bootrom_uart_puts("VALID\r\n");
-        bootrom_uart_puts("  active:   Slot ");
-        bootrom_uart_putc(pt->active_slot == SLOT_B ? 'B' : 'A');
+        bootrom_uart_puts("  active:   BootLoader Store ");
+        bootrom_uart_putc(pt->active_bootloader_store == SLOT_B ? 'B' : 'A');
         bootrom_uart_puts("\r\n");
         bootrom_uart_puts("  boot_cnt: ");
         shell_put_dec(pt->boot_count);
@@ -870,11 +1203,11 @@ static void shell_cmd_info(void)
         bootrom_uart_puts(")\r\n");
     }
 
-    /* BootLoader Slot A */
-    shell_show_image_info("BootLoader Slot A @0x400:", BOOTLOADER_SLOT_A_OFFSET);
+    /* BootLoader Store A */
+    shell_show_image_info("BootLoader Store A @0x30000:", BOOTLOADER_STORE_A_OFFSET);
 
-    /* BootLoader Slot B */
-    shell_show_image_info("BootLoader Slot B @0x100000:", BOOTLOADER_SLOT_B_OFFSET);
+    /* BootLoader Store B */
+    shell_show_image_info("BootLoader Store B @0x40000:", BOOTLOADER_STORE_B_OFFSET);
 }
 
 /* ========================================================================
@@ -916,7 +1249,7 @@ static void shell_print_help(void)
     bootrom_uart_puts("Commands:\r\n");
     bootrom_uart_puts("  md <addr> [len]   - memory dump (hex, default 64B)\r\n");
     bootrom_uart_puts("  mw <addr> <val>   - memory write (32-bit)\r\n");
-    bootrom_uart_puts("  info              - show partition table & bootloader images\r\n");
+    bootrom_uart_puts("  info              - show partition table & bootloader stores\r\n");
     bootrom_uart_puts("  go <addr>         - jump to address\r\n");
     bootrom_uart_puts("  boot flash        - boot from Flash\r\n");
     bootrom_uart_puts("  boot uart         - enter UART download\r\n");
@@ -1045,14 +1378,14 @@ void bootrom_enter_jtag_mode(void)
 }
 
 /* ========================================================================
- * Flash 启动（支持 A/B 分区回滚）
+ * Flash 启动（支持 BootLoader Store A/B 选择与回退）
  * ======================================================================== */
 
 int bootrom_boot_from_flash(void)
 {
     /* 读分区表 */
     const partition_table_t *pt =
-        (const partition_table_t *)bootrom_flash_ptr(0);
+        (const partition_table_t *)bootrom_flash_ptr(PARTITION_TABLE_OFFSET);
     uint32_t try_slot_offset;
     uint32_t fallback_offset;
     int ret;
@@ -1060,18 +1393,18 @@ int bootrom_boot_from_flash(void)
     bootrom_qspi_init();
 
     if (bootrom_validate_partition_table(pt) == BOOTROM_OK) {
-        /* 分区表有效，按 active_slot 选择 */
-        if (pt->active_slot == SLOT_B) {
-            try_slot_offset = pt->slot_b_offset;
-            fallback_offset = pt->slot_a_offset;
+        /* 分区表有效，按 active_bootloader_store 选择 */
+        if (pt->active_bootloader_store == SLOT_B) {
+            try_slot_offset = pt->bootloader_store_b_offset;
+            fallback_offset = pt->bootloader_store_a_offset;
         } else {
-            try_slot_offset = pt->slot_a_offset;
-            fallback_offset = pt->slot_b_offset;
+            try_slot_offset = pt->bootloader_store_a_offset;
+            fallback_offset = pt->bootloader_store_b_offset;
         }
     } else {
-        /* 分区表无效，直接从 BootLoader Slot A 启动 */
-        try_slot_offset = BOOTLOADER_SLOT_A_OFFSET;
-        fallback_offset = BOOTLOADER_SLOT_B_OFFSET;
+        /* 分区表无效，直接从 BootLoader Store A 启动 */
+        try_slot_offset = BOOTLOADER_STORE_A_OFFSET;
+        fallback_offset = BOOTLOADER_STORE_B_OFFSET;
     }
 
     /* 尝试主分区 */
@@ -1080,7 +1413,7 @@ int bootrom_boot_from_flash(void)
         return BOOTROM_OK;  /* 不会到达，已跳转 */
     }
 
-    BOOTROM_LOG("BootLoader slot fail, try fallback\r\n");
+    BOOTROM_LOG("BootLoader store fail, try fallback\r\n");
 
     /* 主分区失败，尝试备份分区 */
     ret = bootrom_load_and_verify(fallback_offset);
@@ -1105,8 +1438,8 @@ int bootrom_boot_from_uart(void)
      * 2. Host → BootROM: 64 字节 BootLoader 镜像头
      * 3. BootROM 验证头部，发送 ACK/NAK
      * 4. Host → BootROM: image_size 字节 payload
-     * 5. BootROM 验证 CRC，发送 ACK/NAK
-     * 6. 验证通过则跳转到入口
+     * 5. BootROM 将镜像写入 BootLoader Store A/B
+     * 6. 写入完成后重新校验并跳转到入口
      */
 
     uint32_t timeout = 0x00FFFFFF;  /* 超时计数 */
@@ -1135,10 +1468,7 @@ int bootrom_boot_from_uart(void)
                 bootrom_uart_putc(UART_NAK);
                 continue;
             }
-            if (hdr.boot_mode != BOOT_MODE_ILM ||
-                hdr.image_size > BOOTROM_UART_STAGE_SIZE ||
-                !bootrom_is_valid_load_range(hdr.load_addr, hdr.image_size) ||
-                !bootrom_range_fits(hdr.load_addr, hdr.image_size, hdr.entry_point, 1U)) {
+            if ((IMAGE_HDR_SIZE + hdr.image_size) > BOOTLOADER_STORE_SIZE) {
                 bootrom_uart_putc(UART_NAK);
                 continue;
             }
@@ -1146,30 +1476,13 @@ int bootrom_boot_from_uart(void)
             /* 头部有效，发送 ACK */
             bootrom_uart_putc(UART_ACK);
 
-            /* 接收 BootLoader payload 到 staging SRAM */
-            uint8_t *stage_dst = (uint8_t *)BOOTROM_UART_STAGE_BASE;
-            if (bootrom_uart_recv(stage_dst, hdr.image_size, timeout) < 0) {
+            if (bootrom_flash_program_bootloader_store(&hdr, (const uint8_t *)0, timeout) != BOOTROM_OK) {
                 bootrom_uart_putc(UART_NAK);
                 continue;
             }
 
-            /* 验证 payload CRC */
-            uint32_t calc_crc = bootrom_crc32(stage_dst, hdr.image_size);
-            if (calc_crc != hdr.image_crc32) {
-                bootrom_uart_putc(UART_NAK);
-                continue;
-            }
-
-            /* 全部验证通过 */
-            bootrom_copy_bytes((void *)hdr.load_addr, stage_dst, hdr.image_size);
             bootrom_uart_putc(UART_ACK);
-            BOOTROM_LOG("OK, jump\r\n");
-
-            FENCE();
-            FENCE_I();
-
-            bootrom_jump_to_app(hdr.entry_point);
-            /* 不应到达 */
+            BOOTROM_LOG("OK, flash jump\r\n");
         }
     }
 

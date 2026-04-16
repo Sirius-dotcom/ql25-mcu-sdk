@@ -2,7 +2,7 @@
  * @file bootrom.h
  * @brief QL25 BootROM 定义
  *
- * BootROM 固化在主核（Core 1）16KB ROM 中，上电后第一段执行的代码。
+ * BootROM 固化在主核（Core 1）片上 16KB BootROM 中，上电后第一段执行的代码。
  *
  * 硬件前提：
  *   - Core 1（主核）无 ILM/DLM，只有 16KB ROM
@@ -31,7 +31,7 @@
  * ======================================================================== */
 
 /* BootROM 自身地址（SoC 硬件定义，主核复位向量指向此处） */
-#define BOOTROM_BASE            0x00000000UL    /* TODO: 根据 SoC 实际地址修改 */
+#define BOOTROM_BASE            0x08000000UL
 #define BOOTROM_SIZE            (16 * 1024)
 
 /* 片上 SRAM（上电即可用） */
@@ -72,7 +72,10 @@
 #define MISC_CTRL5_CORE1_STOP   (1UL << 1)     /* BIT(1): soc_clk_core1_stop_on_reset */
 #define SUBM_RESET_CTRL0_OFS    0x20UL
 #define SUBM_CLK_CTRL0_OFS      0x40UL
+#define SUBM_CLK_CTRL1_OFS      0x44UL
 #define SUBM_QSPI_XIP0_BIT      8U
+#define SUBM_CLK_CTRL0_USART0   BIT(1)
+#define SUBM_CLK_CTRL1_IOMUX    BIT(12)
 
 /* ========================================================================
  * USART 寄存器偏移（最小集）
@@ -146,30 +149,47 @@ typedef struct {
 _Static_assert(sizeof(image_header_t) == IMAGE_HDR_SIZE, "image_header_t size mismatch");
 
 /* ========================================================================
- * Flash 分区表（支持 A/B 双镜像回滚）
+ * Flash 分区：外部 Flash 元数据区 + 可装载镜像区
  * ======================================================================== */
 
-#define PARTITION_TABLE_MAGIC   0x5054424CUL    /* "PTBL" */
-#define PARTITION_TABLE_ADDR    FLASH_XIP_BASE  /* Flash 起始 1KB 放分区表 */
-#define PARTITION_TABLE_SIZE    1024UL
+#define FLASH_META_AREA_OFFSET          0x00000000UL
+#define FLASH_META_AREA_SIZE            0x00010000UL    /* 64KB */
 
-/* Flash 分区布局（2MB 总量）：
- *   0x20000000 ~ 0x200003FF : 分区表（1KB）
- *   0x20000400 ~ 0x200FFFFF : Slot A（≈1MB - 1KB）
- *   0x20100000 ~ 0x201FFFFF : Slot B（1MB）
- */
-#define SLOT_A_OFFSET           0x00000400UL
-#define SLOT_B_OFFSET           0x00100000UL
-#define SLOT_MAX_SIZE           0x000FFC00UL    /* ≈1MB - 1KB */
-#define BOOTLOADER_SLOT_A_OFFSET    SLOT_A_OFFSET
-#define BOOTLOADER_SLOT_B_OFFSET    SLOT_B_OFFSET
-#define BOOTLOADER_SLOT_MAX_SIZE    SLOT_MAX_SIZE
+#define PARTITION_TABLE_MAGIC           0x5054424CUL    /* "PTBL" */
+#define PARTITION_TABLE_OFFSET          0x00000000UL
+#define PARTITION_TABLE_ADDR            (FLASH_XIP_BASE + PARTITION_TABLE_OFFSET)
+#define PARTITION_TABLE_SIZE            0x00001000UL    /* 4KB */
+
+#define UPGRADE_STATE_OFFSET            0x00001000UL
+#define UPGRADE_STATE_SIZE              0x00001000UL    /* 4KB */
+
+#define CRITICAL_BREADCRUMB_OFFSET      0x00002000UL
+#define CRITICAL_BREADCRUMB_SIZE        0x00002000UL    /* 8KB */
+
+#define FACTORY_CONFIG_OFFSET           0x00004000UL
+#define FACTORY_CONFIG_SIZE             0x00004000UL    /* 16KB */
+
+#define RUNTIME_CONFIG_A_OFFSET         0x00008000UL
+#define RUNTIME_CONFIG_A_SIZE           0x00004000UL    /* 16KB */
+#define RUNTIME_CONFIG_B_OFFSET         0x0000C000UL
+#define RUNTIME_CONFIG_B_SIZE           0x00004000UL    /* 16KB */
+
+#define PERSISTENT_LOG_OFFSET           0x00010000UL
+#define PERSISTENT_LOG_SIZE             0x00020000UL    /* 128KB */
+
+#define BOOTLOADER_STORE_A_OFFSET       0x00030000UL
+#define BOOTLOADER_STORE_B_OFFSET       0x00040000UL
+#define BOOTLOADER_STORE_SIZE           0x00010000UL    /* 64KB */
+
+#define APP_SLOT_A_OFFSET               0x00050000UL
+#define APP_SLOT_B_OFFSET               0x00128000UL
+#define APP_SLOT_SIZE                   0x000D8000UL    /* 864KB */
 
 typedef struct {
     uint32_t magic;             /* PARTITION_TABLE_MAGIC */
-    uint32_t active_slot;       /* 0 = Slot A, 1 = Slot B */
-    uint32_t slot_a_offset;     /* Slot A 在 Flash 中的偏移 */
-    uint32_t slot_b_offset;     /* Slot B 在 Flash 中的偏移 */
+    uint32_t active_bootloader_store; /* 0 = Store A, 1 = Store B */
+    uint32_t bootloader_store_a_offset; /* BootLoader Store A 在 Flash 中的偏移 */
+    uint32_t bootloader_store_b_offset; /* BootLoader Store B 在 Flash 中的偏移 */
     uint32_t boot_count;        /* 启动计数（回滚判断用） */
     uint32_t rollback_limit;    /* 连续失败几次后回滚（默认 3） */
     uint8_t  reserved[8];       /* 预留 */
@@ -186,6 +206,7 @@ typedef struct {
 #define UART_ACK                'A'
 #define UART_NAK                'N'
 #define UART_BAUDRATE           115200
+#define BOOTROM_CPU_CLOCK_HZ    200000000UL
 
 /* ========================================================================
  * BootROM Shell（交互式命令行，开发调试用）
